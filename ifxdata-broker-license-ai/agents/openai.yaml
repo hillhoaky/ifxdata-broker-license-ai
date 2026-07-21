@@ -1,0 +1,4 @@
+interface:
+  display_name: "IFXData Broker License AI Score"
+  short_description: "API-first license scoring with redacted DeepSeek support"
+  default_prompt: "Use $ifxdata-broker-license-ai-score to process a broker’s Global licenses through IFXData APIs when available, redact private fields before DeepSeek, score with Gemini, and save verified updates."
