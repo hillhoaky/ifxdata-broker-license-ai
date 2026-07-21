@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "confirmed_at": "2026-07-21T00:00:00+07:00",
+  "environment": "ifxdata-admin",
+  "source": "observed authenticated IFXData admin browser requests; credentials and headers intentionally excluded",
+  "endpoints": {
+    "broker_list": {
+      "method": "GET",
+      "url": "https://api.ifxdata.com/api/v1/admin/user/getUser",
+      "observed_query": {
+        "id": "broker",
+        "userCountry": "en",
+        "pageSize": 10,
+        "pageNum": 1
+      },
+      "broker_id_field": "id_or_key_unconfirmed",
+      "notes": "Endpoint path observed from page assets. Response body still needs one safe sample to confirm broker ID field and exact list shape."
+    },
+    "global_license_list": {
+      "method": "GET",
+      "url": "https://api.ifxdata.com/api/v1/admin/broker/listLicense",
+      "observed_query": {
+        "id": 160,
+        "pageSize": 10,
+        "pageNum": 1
+      },
+      "license_record_id_field": "key",
+      "license_reference_id_field": "licenseId",
+      "global_scope_signal": "language inferred from admin Global context; exact response field unconfirmed",
+      "notes": "Observed for broker id 160. Use current broker id as query parameter id."
+    },
+    "global_license_update": {
+      "method": "POST",
+      "url": "http://47.245.121.35:6969/api/v1/admin/broker/updateLicense",
+      "payload_shape": "full_license_record",
+      "record_id_field": "key",
+      "license_reference_id_field": "licenseId",
+      "auth_headers": {
+        "x-account": "IFXDATA_ADMIN_ACCOUNT",
+        "x-password": "IFXDATA_ADMIN_PASSWORD"
+      },
+      "mutable_fields": {
+        "score": "integer 0-100",
+        "ai": "cleaned Gemini AI Score Introduction",
+        "beginTime": "optional enrichment; write only when source is empty and verified YYYY-MM-DD",
+        "country": "optional enrichment; write only when source is empty and Gemini returns a concrete value",
+        "email": "optional enrichment; write only when source is empty and Gemini returns a concrete email",
+        "telphone": "optional enrichment; write only when source is empty and Gemini returns a concrete phone-like value"
+      },
+      "preserve_fields": [
+        "key",
+        "licenseId",
+        "type",
+        "no",
+        "beginTime",
+        "status",
+        "company",
+        "fullName",
+        "address",
+        "country",
+        "email",
+        "telphone",
+        "image"
+      ],
+      "sample_payload_redacted": {
+        "key": 13476,
+        "licenseId": 513,
+        "type": "Market Maker (MM)",
+        "no": "446717",
+        "beginTime": "2006-03-24",
+        "status": "Regulated",
+        "company": "StoneX Financial Ltd",
+        "score": "98",
+        "ai": "cleaned Gemini AI Score Introduction",
+        "fullName": "StoneX Financial Ltd",
+        "country": "United Kingdom",
+        "email": "sfladvisorycompliance@example.com",
+        "telphone": "+442035806000",
+        "address": "1st Floor Moor House 120 London Wall London EC2Y 5ETE C 2 Y 5 E T UNITED KINGDOM",
+        "image": "https://example.com/license-image.jpg"
+      },
+      "success_signal": "unconfirmed; verify by fresh listLicense read after save",
+      "notes": "Preferred write endpoint for editing existing Global broker license score, AI introduction, beginTime, and empty enrichment fields."
+    },
+    "global_license_bulk_save": {
+      "method": "POST",
+      "url": "http://47.245.121.35:6969/api/v1/admin/broker/addLicenseToBroker",
+      "payload_shape": "userId_with_licenseList",
+      "broker_id_field": "userId",
+      "license_reference_id_field": "licenseId",
+      "auth_headers": {
+        "x-account": "IFXDATA_ADMIN_ACCOUNT",
+        "x-password": "IFXDATA_ADMIN_PASSWORD"
+      },
+      "mutable_fields": {
+        "score": "integer 0-100",
+        "ai": "cleaned Gemini AI Score Introduction",
+        "beginTime": "optional enrichment; write only when source is empty and verified YYYY-MM-DD",
+        "country": "optional enrichment; write only when source is empty and Gemini returns a concrete value",
+        "email": "optional enrichment; write only when source is empty and Gemini returns a concrete email",
+        "telphone": "optional enrichment; write only when source is empty and Gemini returns a concrete phone-like value"
+      },
+      "preserve_fields": [
+        "licenseId",
+        "type",
+        "no",
+        "beginTime",
+        "status",
+        "company",
+        "fullName",
+        "address",
+        "country",
+        "email",
+        "telphone",
+        "image"
+      ],
+      "sample_payload_redacted": {
+        "userId": 150,
+        "licenseList": [
+          {
+            "licenseId": 513,
+            "type": "Market Maker (MM)",
+            "no": "1",
+            "beginTime": "2026-07-21",
+            "status": "Offshore Regulated",
+            "company": "test Company",
+            "score": 11,
+            "ai": "test123",
+            "fullName": "test Full Name",
+            "country": "Country",
+            "email": "Email",
+            "telphone": "Telephone",
+            "address": "Address",
+            "image": "https://example.com/license-image.jpg"
+          }
+        ]
+      },
+      "success_signal": "unconfirmed; verify by fresh listLicense read after save",
+      "list_semantics": "use for adding licenses or user-approved full-list saves; do not prefer for existing-license score edits"
+    }
+  },
+  "open_questions": [
+    "Confirm broker_list response broker ID field.",
+    "Confirm whether listLicense response itself is always Global or needs a language/scope parameter.",
+    "Confirm updateLicense success response body/status code.",
+    "Confirm addLicenseToBroker success response body/status code.",
+    "Confirm whether addLicenseToBroker accepts partial licenseList safely or requires the full broker licenseList."
+  ],
+  "safety": {
+    "credentials_recorded": false,
+    "cookies_recorded": false,
+    "authorization_headers_recorded": false,
+    "normal_write_requires_read_after_write": true
+  }
+}
