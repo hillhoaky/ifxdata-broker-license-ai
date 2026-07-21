@@ -1,6 +1,6 @@
 # IFXData admin API access
 
-Use IFXData admin APIs as the normal access layer for broker-license reads, writes, and verification. Use the admin browser UI only to discover confirmed endpoints, resolve unexpected UI-only data, operate Gemini Web, inspect official websites, or perform a supervised fallback save when no safe API route is known.
+Use IFXData admin APIs as the normal access layer for broker-license reads, writes, and verification. Use the admin browser UI only to discover confirmed endpoints, resolve unexpected UI-only data, operate Gemini Web, and inspect official websites. Do not perform browser UI write-back unless the user explicitly authorizes UI fallback for the exact run after the API failure is reported.
 
 API access is required for scalable runs. Screenshots and broad DOM snapshots are too token-expensive and fragile for routine broker/license extraction.
 
@@ -14,7 +14,7 @@ Before writing license scores through API, confirm all of these items from exist
 - Language/scope parameter that proves the target is `Global`.
 - Authentication mechanism already present in the signed-in admin session.
 
-Do not infer or invent an endpoint from route names. If the write contract is incomplete, run endpoint discovery before batch work. Use `ui_fallback` only for a supervised one-off run, and record why the API path was unavailable.
+Do not infer or invent an endpoint from route names. If the write contract is incomplete, run endpoint discovery before batch work. Use `ui_fallback` only for a supervised one-off run after explicit user authorization, and record why the API path was unavailable.
 
 Confirmed safe endpoint/path observations from 2026-07-20 are stored in [ifxdata-api-mapping.json](ifxdata-api-mapping.json). Load that mapping before running a broker. If later browser observation contradicts it, stop and refresh the mapping before any write.
 
@@ -34,6 +34,9 @@ Run logs and result files may record that credential headers were supplied, but 
 
 ## Preferred API sequence
 
+0. Run an API health check. Confirm credentials exist without printing them, the broker/license read endpoint is reachable, and the response is parseable/authenticated. If this fails, stop with `api_unavailable`; do not score or write through browser UI unless the user explicitly authorizes UI fallback for this exact run. Prefer the bundled helper:
+   - `scripts/ifxdata_admin_api.py health`
+   - `scripts/ifxdata_admin_api.py list --broker-id <id>`
 1. Read broker list/detail and resolve the exact requested broker.
 2. Read the broker's Global license list with stable record IDs.
 3. For each license, read the current detail before scoring to capture existing values and identity fields.
@@ -52,6 +55,13 @@ Use this endpoint for normal score, AI introduction, and missing-field enrichmen
 
 ```text
 POST http://47.245.121.35:6969/api/v1/admin/broker/updateLicense
+```
+
+Bundled helper:
+
+```text
+scripts/ifxdata_admin_api.py update --input <payload.json>          # dry run
+scripts/ifxdata_admin_api.py update --input <payload.json> --execute # live write
 ```
 
 Headers:
@@ -115,6 +125,13 @@ Use:
 
 ```text
 POST http://47.245.121.35:6969/api/v1/admin/broker/addLicenseToBroker
+```
+
+Bundled helper:
+
+```text
+scripts/ifxdata_admin_api.py add-list --input <payload.json>          # dry run
+scripts/ifxdata_admin_api.py add-list --input <payload.json> --execute # live write
 ```
 
 Headers:
@@ -189,14 +206,16 @@ For both confirmed write endpoints, the begin-time field is `beginTime`.
 
 ## Fallback policy
 
-Use `ui_fallback` when any of these is true:
+The default fallback for API failure is to stop, not to write through the UI. Report `api_unavailable` when DNS, network, sandbox, authentication, endpoint, or parse errors prevent API reads/writes.
+
+Use `ui_fallback` only when the user explicitly authorizes it for this exact run and one of these is true:
 
 - The license read/write endpoint is unknown.
 - The endpoint is known but the Global scope parameter is uncertain.
 - The API response does not expose a stable license record ID.
 - The API write fails and no safe retry is available.
 
-For UI fallback, still capture structured text values from page fields wherever possible. Use screenshots only as supporting evidence for a visual anomaly, not as the source of truth. Avoid full DOM/page dumps except when debugging endpoint discovery.
+For UI fallback, still capture structured text values from page fields wherever possible. Use screenshots only as supporting evidence for a visual anomaly, not as the source of truth. Avoid full DOM/page dumps except when debugging endpoint discovery. Record the exact user authorization phrase, fallback reason, and `ifxdata_access_mode: ui_fallback`.
 
 ## Write safety
 

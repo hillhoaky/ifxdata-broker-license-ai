@@ -23,6 +23,8 @@ The browser UI is allowed only for:
 - official website pages
 - supervised troubleshooting when an API call fails or the API contract is unknown
 
+The browser UI is not allowed for IFXData write-back unless the user explicitly authorizes UI fallback for that exact run after seeing the API failure reason.
+
 Do not use screenshots as an extraction method for IFXData license fields. Do not dump full DOM snapshots for routine field reads.
 
 ## Endpoint discovery once, then cache
@@ -99,20 +101,27 @@ Keep fields such as `key`, `licenseId`, `type`, `no`, `status`, `company`, `full
 For a normal broker run:
 
 1. Load the confirmed endpoint mapping.
-2. Read broker list/detail via API and resolve the exact broker ID/name.
-3. Read the broker Global `Web link` via API.
-4. Read Global license list via API.
-5. Run official website precheck.
-6. For each license, read current detail via API before scoring.
-7. Ask Gemini only for eligible licenses.
-8. Parse Gemini locally.
-9. Stage the update payload from the source record and modify only:
+2. Run a lightweight API health check with `scripts/ifxdata_api_health_check.py`, or `scripts/ifxdata_admin_api.py health` followed by `scripts/ifxdata_admin_api.py list --broker-id <id>`:
+   - environment credentials are present, or a local untracked `.env.local` is present, without printing values;
+   - the broker/license read endpoint is reachable;
+   - the response is parseable JSON and not an authentication failure.
+3. If the health check fails, stop with `api_unavailable`. Do not ask Gemini and do not write through the browser UI unless the user explicitly authorizes UI fallback for this exact run.
+4. Read broker list/detail via API and resolve the exact broker ID/name.
+5. Read the broker Global `Web link` via API.
+6. Read Global license list via API.
+7. Run official website precheck.
+8. For each license, read current detail via API before scoring.
+9. Ask Gemini only for eligible licenses.
+10. Parse Gemini locally.
+11. Stage the update payload from the source record and modify only:
    - `score`
    - `ai`
    - optional empty-field enrichments that passed validation
-10. Submit the update via API.
-11. Verify by fresh API read.
-12. Write one compact result row per license.
+12. Submit the update via API.
+13. Verify by fresh API read.
+14. Write one compact result row per license.
+
+Use `scripts/ifxdata_admin_api.py update --input <payload.json>` for dry-run payload validation. Add `--execute` only after the payload is built from the latest API source record and the run is approved to write. Use `scripts/ifxdata_admin_api.py add-list --input <payload.json>` only for adding licenses or confirmed full-list saves.
 
 ## UI fallback limit
 
@@ -120,7 +129,9 @@ UI fallback is not a normal automation path. Use it only when:
 
 - endpoint mapping does not exist yet;
 - an API response contradicts the visible UI and needs supervised inspection;
-- API write fails and the user explicitly authorizes a one-off UI save.
+- API write fails, the agent reports the failure, and the user explicitly authorizes a one-off UI save with wording such as `允许 UI fallback` or `允许网页回填`.
+
+If the API is merely unavailable because of DNS/network/sandbox/auth errors, the default action is to stop and report `api_unavailable`, not to continue scoring or writing in the browser.
 
 When UI fallback is used, keep reads targeted:
 
