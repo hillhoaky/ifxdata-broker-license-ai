@@ -21,14 +21,17 @@ Gemini API limits vary by model and billing tier. A run can fail on any of:
 - requests per day (RPD)
 - spend or billing-account caps
 
-For normal broker-license runs:
+For normal broker-license runs, use conservative throughput rather than the theoretical maximum:
 
 1. Process one broker at a time unless the user explicitly authorizes a batch.
 2. Process licenses sequentially; do not parallelize Gemini scoring.
-3. Wait 3-5 seconds between license-scoring calls.
-4. If Gemini returns HTTP 429, wait 60 seconds and retry once.
-5. If a second 429 occurs for the same license, stop the broker run and report `gemini_rate_limited`.
-6. Do not fall back to Gemini Web automatically after rate limiting unless the user explicitly authorizes web fallback.
+3. Target no more than 6 Gemini requests per minute, even if AI Studio shows a higher RPM limit.
+4. Wait 8-10 seconds between license-scoring calls.
+5. After each broker, pause 30-60 seconds before starting the next broker in the same batch.
+6. Keep a daily safety cap of about 1,000 Gemini scoring calls per API key unless the user confirms a higher active AI Studio limit. This leaves buffer below a typical 1,500 RPD free-tier limit.
+7. If Gemini returns HTTP 429, wait 60 seconds and retry once.
+8. If a second 429 occurs for the same license, stop the broker run and report `gemini_rate_limited`.
+9. Do not fall back to Gemini Web automatically after rate limiting unless the user explicitly authorizes web fallback.
 
 For larger batches, use a cursor and resume later instead of forcing retries. Paid Gemini API tiers can provide higher limits; check the active project limits in AI Studio before increasing throughput.
 

@@ -84,7 +84,7 @@ description: Precheck a broker's official website disclosures against IFXData Gl
   - Gemini API and the confirmed IFXData admin API available without interactive network approval.
   - A valid `GEMINI_API_KEY` / `GOOGLE_AI_STUDIO_API_KEY`, or a signed-in Gemini Web session only for fallback.
   - A valid IFXData admin session/API credential with Global write permission.
-- Gemini API calls must be sequential by default: one broker at a time, no parallel license scoring, 3-5 seconds between licenses, one 60-second retry after HTTP 429, then stop with `gemini_rate_limited`.
+- Gemini API calls must be sequential by default: one broker at a time, no parallel license scoring, target no more than 6 requests per minute, wait 8-10 seconds between licenses, pause 30-60 seconds between brokers, keep a daily safety cap of about 1,000 Gemini scoring calls per API key unless a higher active AI Studio limit is confirmed, retry once after 60 seconds on HTTP 429, then stop with `gemini_rate_limited`.
 - DeepSeek network access is optional. If it requires interactive approval, skip DeepSeek translation/reporting and continue local parsing unless the user explicitly requested DeepSeek output.
 - For production-scale batches, prefer keeping routine parsing local. If DeepSeek is needed for translation or exception review, route it through an IFXData backend service so Codex calls only IFXData-controlled APIs.
 - Browser UI fallback is acceptable only after explicit per-run user authorization. Production automation must use confirmed IFXData APIs for reads, writes, and verification.
