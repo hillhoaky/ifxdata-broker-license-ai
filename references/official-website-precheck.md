@@ -4,7 +4,7 @@ Before asking Gemini for license scores, run this precheck once per broker.
 
 ## Goal
 
-Use the broker's official website to compare public regulatory disclosures against IFXData Global license records. This catches wrong legal entities, license numbers, missing licenses, or outdated records before AI scoring and write-back.
+Use the broker's official website to compare public regulatory disclosures against IFXData Global license records before any Gemini scoring. This catches wrong legal entities, license numbers, missing licenses, extra backend records, or outdated records before AI scoring and write-back.
 
 ## Source of website link
 
@@ -64,8 +64,20 @@ Use these comparison statuses:
 
 - If every license is `matched` or only has immaterial wording differences, continue to Gemini scoring.
 - If any status is `number_mismatch`, `entity_mismatch`, `scope_mismatch`, `backend_missing`, or `unclear`, stop before Gemini scoring and report the differences to the user. Let the user correct IFXData first or explicitly authorize continuing with current values.
+- If the website discloses licenses missing from IFXData, do not ask Gemini to score the backend licenses yet. Give the user the missing-license list first, wait for the user to add/correct the backend records, then perform a fresh API read before scoring.
+- If IFXData contains a license the website no longer discloses, report it as `website_missing`. Do not delete or change it unless the user instructs you. If the status is revoked/cancelled and already represented in IFXData, it may be left as-is and skipped unless the user requests scoring.
 - If a website cannot be opened, do not block the scoring run. Continue with current IFXData values and record `website_unavailable`.
 - If the official website contradicts IFXData but Gemini later provides more reliable regulator-specific evidence, report it to the user and keep the affected license as `needs_review` until corrected.
+
+## User correction checkpoint
+
+When differences are found, summarize them as a compact correction list:
+
+- `backend_missing`: regulator, jurisdiction, legal entity, license number, and page where observed.
+- `website_missing`: backend regulator, legal entity, license number, and why no matching website disclosure was found.
+- `number_mismatch`, `entity_mismatch`, `scope_mismatch`, `address_mismatch`: show backend value vs website value.
+
+After the user says `已修改`, `已添加`, or otherwise confirms correction, reload IFXData Global licenses through the API and restart the comparison/scoring stage from the fresh backend data.
 
 ## Output record
 

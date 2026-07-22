@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Score one IFXData broker license through Google AI Studio Gemini API.
+"""Score IFXData broker license records through Google AI Studio Gemini API.
 
 Reads GEMINI_API_KEY or GOOGLE_AI_STUDIO_API_KEY from the environment first,
 then a nearby untracked `.env.local`. The key is never printed.
@@ -56,6 +56,24 @@ def api_key() -> tuple[str, str | None]:
     return key, source
 
 
+def normalize_records(data: object) -> list[dict[str, object]]:
+    if isinstance(data, list):
+        records = data
+    elif isinstance(data, dict) and isinstance(data.get("licenses"), list):
+        records = data["licenses"]  # type: ignore[assignment]
+    elif isinstance(data, dict):
+        records = [data]
+    else:
+        raise ValueError("license input must be a JSON object, array, or object with a licenses array")
+
+    normalized: list[dict[str, object]] = []
+    for item in records:
+        if not isinstance(item, dict):
+            raise ValueError("each license record must be a JSON object")
+        normalized.append(item)
+    return normalized
+
+
 def build_prompt(record: dict[str, object]) -> str:
     def value(*names: str) -> str:
         for name in names:
@@ -90,6 +108,71 @@ Risk Level: <Low / Medium / High>
 """
 
 
+def build_batch_prompt(records: list[dict[str, object]]) -> str:
+    if not 1 <= len(records) <= 3:
+        raise ValueError("batch Gemini scoring supports 1 to 3 license records per request")
+
+    def value(record: dict[str, object], *names: str) -> str:
+        for name in names:
+            raw = record.get(name)
+            if raw not in (None, ""):
+                return str(raw).strip()
+        return "Not provided"
+
+    blocks = []
+    for index, record in enumerate(records, start=1):
+        blocks.append(
+            f"""License {index}
+License record ID: {value(record, "key", "licenseRecordId", "id")}
+Regulator / Institution: {value(record, "institution", "licenseName", "name", "country")}
+License type: {value(record, "type", "licenseType")}
+License number: {value(record, "no", "licenseNo", "licenseNumber")}
+Begin time of licence: {value(record, "beginTime", "begin_time", "beginDate")}
+Status: {value(record, "status")}
+Registered company name: {value(record, "company", "fullName", "companyName")}
+Registered address: {value(record, "address")}
+Missing IFXData fields: {value(record, "missingFields", "missing_fields")}"""
+        )
+
+    joined = "\n\n".join(blocks)
+    return f"""You are evaluating forex/CFD broker regulatory licenses for investor-facing broker profiles.
+
+Assess each license independently. Do not score the broker's overall trading conditions, spreads, or popularity.
+
+License records:
+{joined}
+
+For each license, evaluate regulator credibility, authorization scope, investor protection, compliance strength, license age, current status, legal-entity/license-number match, address match where available, and material uncertainty.
+
+If IFXData is missing country, begin time of licence, email, telephone, or address, provide a supplemental value only when you can identify a concrete value from reliable public information. If a value is not clearly available, use null. Do not guess.
+
+Return valid JSON only. Do not include Markdown, comments, tables, citations, or text outside JSON.
+
+Use exactly this JSON shape:
+{{
+  "results": [
+    {{
+      "license_record_id": "<same License record ID from the input>",
+      "license_number": "<same license number from the input>",
+      "company": "<same registered company name from the input>",
+      "score": <integer from 0 to 100>,
+      "risk_level": "<Low, Medium, or High>",
+      "introduction": "<250-400 English words in four short paragraphs separated by newline newline>",
+      "investor_significance": "<one concise English sentence>",
+      "supplemental_fields": {{
+        "country": "<country/jurisdiction or null>",
+        "beginTime": "<YYYY-MM-DD or null>",
+        "email": "<email or null>",
+        "telphone": "<telephone or null>",
+        "address": "<address or null>"
+      }},
+      "supplemental_evidence": "<one concise sentence or null>"
+    }}
+  ]
+}}
+"""
+
+
 def parse_reply(text: str) -> dict[str, object]:
     score_match = re.search(r"(?im)^\s*Score\s*:\s*(\d{1,3})\b", text)
     risk_match = re.search(r"(?im)^\s*Risk Level\s*:\s*(Low|Medium|High)\b", text)
@@ -105,6 +188,57 @@ def parse_reply(text: str) -> dict[str, object]:
         "word_count": len(intro.split()),
         "raw_reply": text,
         "valid": isinstance(score, int) and 0 <= score <= 100 and bool(intro),
+    }
+
+
+def parse_batch_reply(text: str) -> dict[str, object]:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"(?is)^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"(?is)\s*```\s*$", "", cleaned).strip()
+
+    try:
+        payload = json.loads(cleaned)
+    except json.JSONDecodeError:
+        match = re.search(r"(?is)\{.*\}", cleaned)
+        try:
+            payload = json.loads(match.group(0)) if match else {}
+        except json.JSONDecodeError:
+            payload = {}
+
+    results = payload.get("results") if isinstance(payload, dict) else None
+    if not isinstance(results, list):
+        return {"results": [], "raw_reply": text, "valid": False, "reason": "missing_results_array"}
+
+    parsed_results: list[dict[str, object]] = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        intro = str(item.get("introduction") or "").strip()
+        score = item.get("score")
+        if isinstance(score, str) and score.isdigit():
+            score = int(score)
+        valid = isinstance(score, int) and 0 <= score <= 100 and bool(intro)
+        parsed_results.append(
+            {
+                "license_record_id": item.get("license_record_id"),
+                "license_number": item.get("license_number"),
+                "company": item.get("company"),
+                "score": score,
+                "risk_level": item.get("risk_level"),
+                "introduction": intro,
+                "investor_significance": item.get("investor_significance"),
+                "supplemental_fields": item.get("supplemental_fields") if isinstance(item.get("supplemental_fields"), dict) else {},
+                "supplemental_evidence": item.get("supplemental_evidence"),
+                "word_count": len(intro.split()),
+                "valid": valid,
+            }
+        )
+
+    return {
+        "results": parsed_results,
+        "raw_reply": text,
+        "valid": bool(parsed_results) and all(bool(item.get("valid")) for item in parsed_results),
     }
 
 
@@ -202,7 +336,7 @@ def wait_for_shared_rate_limit(*, min_interval: float, rate_limit_file: str) -> 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--license-json", help="JSON file containing one license record")
+    parser.add_argument("--license-json", help="JSON file containing one license record, a JSON array of up to 3 records, or an object with licenses array")
     parser.add_argument("--institution", default="")
     parser.add_argument("--type", default="")
     parser.add_argument("--no", default="")
@@ -231,9 +365,9 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.license_json:
-        record = json.loads(Path(args.license_json).read_text(encoding="utf-8"))
+        input_data = json.loads(Path(args.license_json).read_text(encoding="utf-8"))
     else:
-        record = {
+        input_data = {
             "institution": args.institution,
             "type": args.type,
             "no": args.no,
@@ -242,11 +376,14 @@ def main() -> int:
             "company": args.company,
             "address": args.address,
         }
+    records = normalize_records(input_data)
+    prompt = build_prompt(records[0]) if len(records) == 1 else build_batch_prompt(records)
+    max_tokens = args.max_output_tokens if len(records) == 1 else max(args.max_output_tokens, 1600 * len(records))
 
     reply = request_gemini(
-        build_prompt(record),
+        prompt,
         model=args.model,
-        max_tokens=args.max_output_tokens,
+        max_tokens=max_tokens,
         temperature=args.temperature,
         timeout=args.timeout,
         retries=args.retries,
@@ -255,7 +392,7 @@ def main() -> int:
         min_interval=args.min_interval,
         rate_limit_file=args.rate_limit_file,
     )
-    parsed = parse_reply(reply)
+    parsed = parse_reply(reply) if len(records) == 1 else parse_batch_reply(reply)
     parsed.update({"status": "ok" if parsed["valid"] else "needs_review", "model": args.model})
     print(json.dumps(parsed, ensure_ascii=False, indent=2))
     return 0 if parsed["valid"] else 1

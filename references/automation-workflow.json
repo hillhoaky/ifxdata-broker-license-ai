@@ -1,6 +1,6 @@
 {
   "workflow": "ifxdata-broker-license-ai-score",
-  "version": 8,
+  "version": 9,
   "scope": "global-only",
   "entrypoint": "https://admin.ifxdata.com/dashboard/broker-new?page={page}",
   "ifxdata_access": {
@@ -13,9 +13,10 @@
     "api_first_reference": "references/api-first-implementation.md"
   },
   "ai_provider": {
-    "name": "Google Gemini Web",
-    "url": "https://gemini.google.com/app",
-    "prompt_version": "gemini-license-score-v1"
+    "name": "Google AI Studio Gemini API",
+    "model": "gemini-2.5-flash",
+    "script": "scripts/gemini_license_api.py",
+    "prompt_version": "gemini-license-score-v2-grouped"
   },
   "processing_provider": {
     "name": "Local deterministic parser",
@@ -40,7 +41,8 @@
   },
   "runtime": {
     "unattended_allowed": true,
-    "requires_gemini_signed_in_session": true,
+    "requires_gemini_signed_in_session": false,
+    "requires_gemini_api_key": true,
     "requires_ifxdata_global_write_access": true,
     "deepseek_optional": true,
     "default_batch_size_early_rollout": {"brokers": 1, "licenses": 10},
@@ -60,7 +62,8 @@
     "report_precheck_differences",
     "capture_source",
     "check_existing",
-    "query_gemini",
+    "group_eligible_licenses",
+    "query_gemini_group",
     "local_parse_validate",
     "stage_update",
     "save_update",
@@ -83,13 +86,15 @@
     {"from": "enumerate_licenses", "on": "licenses_available", "to": "official_website_precheck"},
     {"from": "official_website_precheck", "on": "matched_or_website_unavailable", "to": "capture_source"},
     {"from": "official_website_precheck", "on": "differences_found", "to": "report_precheck_differences", "status": "needs_review"},
-    {"from": "report_precheck_differences", "on": "user_corrected_or_authorized_continue", "to": "capture_source"},
+    {"from": "report_precheck_differences", "on": "user_corrected", "to": "read_global_licenses"},
+    {"from": "report_precheck_differences", "on": "user_authorized_continue", "to": "capture_source"},
     {"from": "capture_source", "on": "valid_identity", "to": "check_existing"},
     {"from": "capture_source", "on": "ambiguous_or_incomplete", "to": "record_result", "status": "needs_review"},
-    {"from": "check_existing", "on": "empty_or_overwrite_authorized", "to": "query_gemini"},
+    {"from": "check_existing", "on": "empty_or_overwrite_authorized", "to": "group_eligible_licenses"},
     {"from": "check_existing", "on": "existing_and_no_overwrite", "to": "record_result", "status": "skipped_existing"},
-    {"from": "query_gemini", "on": "answer_received", "to": "local_parse_validate"},
-    {"from": "query_gemini", "on": "blocked_or_refused", "to": "record_result", "status": "blocked"},
+    {"from": "group_eligible_licenses", "on": "single_or_group_ready", "to": "query_gemini_group"},
+    {"from": "query_gemini_group", "on": "answer_received", "to": "local_parse_validate"},
+    {"from": "query_gemini_group", "on": "blocked_or_refused", "to": "record_result", "status": "blocked"},
     {"from": "local_parse_validate", "on": "valid", "to": "stage_update"},
     {"from": "local_parse_validate", "on": "invalid_or_ambiguous", "to": "record_result", "status": "needs_review"},
     {"from": "stage_update", "on": "identity_match", "to": "save_update"},
@@ -102,12 +107,14 @@
     {"from": "advance_license", "on": "no_more_licenses", "to": "optional_deepseek_report"},
     {"from": "optional_deepseek_report", "on": "reported_or_skipped", "to": "complete"}
   ],
-  "write_fields": ["score", "ai_score_introduction"],
+  "write_fields": ["score", "ai_score_introduction", "country", "beginTime", "email", "telphone", "address"],
   "guards": {
     "require_global": true,
     "require_official_website_precheck": true,
     "website_unavailable_does_not_block_scoring": true,
     "website_backend_difference_blocks_scoring_until_user_review": true,
+    "fresh_api_read_required_after_user_correction": true,
+    "default_gemini_group_size_when_four_or_more_licenses": 2,
     "prefer_ifxdata_api": true,
     "require_api_for_normal_runs": true,
     "require_confirmed_api_write_contract": true,
