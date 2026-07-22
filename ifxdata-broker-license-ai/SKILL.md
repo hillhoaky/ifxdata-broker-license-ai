@@ -1,6 +1,6 @@
 ---
 name: ifxdata-broker-license-ai-score
-description: Precheck a broker's official website disclosures against IFXData Global license records, score individual broker licenses with Google Gemini Web, optionally enrich missing country/begin-date/email/telephone fields from concrete Gemini findings, parse and validate Gemini answers locally by deterministic script, and update confirmed fields through IFXData admin APIs. Use for API-first single-broker tests, broker-list batches, resumable processing, verified Global license updates, and optional DeepSeek translation/exception summaries.
+description: Precheck a broker's official website disclosures against IFXData Global license records, score individual broker licenses with Google AI Studio Gemini API or Gemini Web fallback, optionally enrich missing country/begin-date/email/telephone fields from concrete Gemini findings, parse and validate Gemini answers locally by deterministic script, and update confirmed fields through IFXData admin APIs. Use for API-first single-broker tests, broker-list batches, resumable processing, verified Global license updates, and optional DeepSeek translation/exception summaries.
 ---
 
 # IFXData Broker License AI Score
@@ -10,10 +10,11 @@ description: Precheck a broker's official website disclosures against IFXData Gl
 - Start from `https://admin.ifxdata.com/dashboard/broker-new?page={page}` and process only the broker(s) requested by the user.
 - Read and write only the `Global` license record. Do not update other language tabs; they inherit from Global.
 - Before license scoring, get the broker's `Web link` from the broker Global page and run an official-website precheck against the Global license records.
-- Use IFXData admin APIs for broker lookup, Global broker detail/Web link, Global license enumeration, existing-value checks, saves, and read-after-write verification after the exact authenticated endpoints and payloads are confirmed. For existing license edits, use `POST /api/v1/admin/broker/updateLicense`. Use `POST /api/v1/admin/broker/addLicenseToBroker` only for adding licenses or confirmed full-list saves. Keep credentials in environment variables, never in skill files or logs. Use browser UI only for endpoint discovery, Gemini Web, official website pages, or supervised fallback.
+- Use IFXData admin APIs for broker lookup, Global broker detail/Web link, Global license enumeration, existing-value checks, saves, and read-after-write verification after the exact authenticated endpoints and payloads are confirmed. For existing license edits, use `POST /api/v1/admin/broker/updateLicense`. Use `POST /api/v1/admin/broker/addLicenseToBroker` only for adding licenses or confirmed full-list saves. Keep credentials in environment variables or an untracked local `.env.local`, never in tracked skill files or logs. Use browser UI only for endpoint discovery, Gemini Web, and official website pages. Do not use browser UI to write IFXData records unless the user explicitly says `允许 UI fallback` or `允许网页回填` for that run.
 - Do not use screenshots or broad DOM dumps as the primary method for IFXData data extraction. Routine IFXData reads/writes must be API-first to control token usage and reduce UI fragility.
+- Before any broker scoring run, perform a lightweight IFXData API health check against the confirmed license/list endpoint. If the API is unreachable, credentials are missing, DNS fails, or write access cannot be verified, stop before Gemini scoring or write-back and report `api_unavailable`. Do not silently continue with browser UI fallback.
 - Treat each license as an independent record. Process licenses in their displayed order unless the user names a specific license.
-- Use the signed-in Google Gemini web app at `https://gemini.google.com/app` for the assessment. Do not silently substitute another model.
+- Prefer Google AI Studio Gemini API for license scoring when `GEMINI_API_KEY` or `GOOGLE_AI_STUDIO_API_KEY` is configured. Use `scripts/gemini_license_api.py` with `gemini-2.5-flash` and `thinkingBudget: 0`. Use the signed-in Google Gemini web app at `https://gemini.google.com/app` only as fallback when the API is unavailable or the user explicitly asks for web Gemini.
 - Use local deterministic parsing and validation for routine Gemini answers. Do not require DeepSeek for normal scoring, parsing, validation, or write-back.
 - When IFXData license fields such as country, begin time of licence, email, or telephone are empty, ask Gemini for optional supplemental values. Fill only concrete values into empty fields; leave unresolved fields blank.
 - Use DeepSeek only as optional support for translation, unresolved exception review, or batch report summarization, and only after replacing private IFXData fields with placeholders. Never send broker names, broker IDs, license record IDs, license numbers, company names, addresses, emails, phone numbers, cookies, or raw browser snapshots to DeepSeek.
@@ -26,13 +27,14 @@ description: Precheck a broker's official website disclosures against IFXData Gl
 
 ## Required references
 
-- Read [references/gemini-license-score-prompt.md](references/gemini-license-score-prompt.md) before asking Gemini.
+- Read [references/gemini-license-score-prompt.md](references/gemini-license-score-prompt.md) before asking Gemini. Prefer `scripts/gemini_license_api.py` for API scoring.
+- Read [references/gemini-api-provider.md](references/gemini-api-provider.md) before using Gemini API, batching Gemini calls, or changing model/rate-limit settings.
 - Read [references/local-parser.md](references/local-parser.md) before parsing Gemini answers or staging updates.
 - Read [references/official-website-precheck.md](references/official-website-precheck.md) before querying Gemini for any broker.
 - Read [references/data-fields.md](references/data-fields.md) before building an update record or payload.
 - Read [references/ifxdata-admin-api.md](references/ifxdata-admin-api.md) before reading or writing IFXData license records.
 - Load [references/ifxdata-api-mapping.json](references/ifxdata-api-mapping.json) before API-first broker runs and resolve any `unconfirmed` fields before unattended write-back.
-- Read [references/api-first-implementation.md](references/api-first-implementation.md) before implementing, batching, or optimizing IFXData access.
+- Read [references/api-first-implementation.md](references/api-first-implementation.md) before implementing, batching, or optimizing IFXData access. Use `scripts/ifxdata_api_health_check.py` for the required pre-run API health check.
 - Read [references/automation-workflow.json](references/automation-workflow.json) before batch execution, resuming a run, or implementing orchestration.
 - Read [references/automation-runtime.md](references/automation-runtime.md) before creating scheduled, unattended, or batch automation.
 - Read [references/deepseek-pipeline.md](references/deepseek-pipeline.md) only before optional DeepSeek translation, reporting, or exception-review stages.
@@ -40,6 +42,7 @@ description: Precheck a broker's official website disclosures against IFXData Gl
 ## Workflow
 
 1. Load the confirmed IFXData endpoint mapping. If it is missing, run one supervised endpoint-discovery pass from `api-first-implementation.md` before batch work; do not repeatedly operate from screenshots/DOM for normal runs.
+1a. Run the API health check from `api-first-implementation.md`. If it fails, stop the broker run before Gemini scoring and report the API failure reason unless the user has explicitly authorized UI fallback for this exact run.
 2. Resolve the exact broker through the broker list/detail API. Capture broker name, broker ID, and Global context from API response.
 3. From the broker Global detail API, capture the `Web link` official website URL. This is the same Global-page Web link source used by the broker AI score workflow.
 4. Read the broker's `Global` license records through the confirmed Global license API.
@@ -53,9 +56,9 @@ description: Precheck a broker's official website disclosures against IFXData Gl
    - CIRO exception: CIRO supervises firms through Dealer Member status and may not provide an FCA-style standalone license number. For a CIRO Investment Dealer Member, accept `Not applicable — CIRO Dealer Member` as the license-number value and match the record using institution, membership type, exact legal entity, status, and address.
    - Keep an unavailable start date or address as `Not provided`; do not invent it.
    - Flag duplicate license numbers, missing legal entities, or ambiguous identity for review.
-8. For each eligible license, use the exact Gemini template. Create a fresh Gemini conversation when practical and submit it to Gemini Web.
-9. Capture the complete Gemini answer and parse it with `scripts/parse_gemini_license_score.py`. Require valid JSON, one explicit score, a four-paragraph English introduction of 400 words or fewer, source company and license number mentioned, and no refusal, identity mismatch, clone risk, revoked/suspended status, unverifiable record, no valid license, no such license, or regulator lookup failure. Do not use Codex-native parsing as a substitute for the script.
-10. Build a staged update record following `data-fields.md` and the confirmed IFXData API contract. For normal score/introduction write-back on an existing license, submit one full `updateLicense` record copied from the latest source and modify only `score`, `ai`, `beginTime`, and optional empty enrichment fields that passed validation. Preserve `key`, `licenseId`, identity, address, image, and non-empty contact fields exactly. Use `addLicenseToBroker` only when adding licenses or when a user-approved full `licenseList` save is required. Do not write until each staged record points to the same source license and passes validation or has explicit user authorization for a reviewed exception.
+8. For each eligible license, use the exact Gemini template. Prefer Gemini API through `scripts/gemini_license_api.py`. If using Gemini Web fallback, create a fresh Gemini conversation when practical and submit it to Gemini Web.
+9. Capture the complete Gemini answer and parse it with `scripts/parse_gemini_license_score.py` or the structured output from `scripts/gemini_license_api.py`. Require one explicit score, a complete English introduction, source company and license number mentioned when available, and no refusal, identity mismatch, clone risk, revoked/suspended status, unverifiable record, no valid license, no such license, or regulator lookup failure. Do not use Codex-native parsing as a substitute for the script.
+10. Build a staged update record following `data-fields.md` and the confirmed IFXData API contract. For normal score/introduction write-back on an existing license, use `scripts/ifxdata_admin_api.py stage-update` or otherwise submit only the strict `updateLicense` whitelist from `ifxdata-admin-api.md`; do not send the raw `listLicense` record back to `updateLicense`. Modify only `score`, `ai`, `beginTime`, and optional empty enrichment fields that passed validation. Preserve `key`, `licenseId`, identity, address, image, and non-empty contact fields exactly. Stage literal `Invalid Date` beginTime values as `""`. Use `addLicenseToBroker` only when adding licenses or when a user-approved full `licenseList` save is required. Do not write until each staged record points to the same source license and passes validation or has explicit user authorization for a reviewed exception.
 11. Save through the confirmed IFXData admin API. Write only:
    - `score`: parsed integer score.
    - `ai`: cleaned English introduction.
@@ -70,20 +73,21 @@ description: Precheck a broker's official website disclosures against IFXData Gl
 - Use a verified IFXData admin API for license reads/writes when its endpoint and payload have been confirmed from existing project documentation, saved endpoint mapping, or observed authenticated requests.
 - Do not guess IFXData write endpoints, HTTP methods, field names, IDs, or language-scope parameters. Confirm the contract before writing.
 - Use screenshots only for human troubleshooting or visual confirmation. Do not use screenshots as the primary data extraction method when text/API data is available.
-- Browser interaction is always appropriate for Gemini Web and for one-time IFXData endpoint discovery. UI saves are supervised fallback only, not the normal path.
+- Browser interaction is always appropriate for Gemini Web and for one-time IFXData endpoint discovery. UI saves are not a normal path and require explicit per-run user authorization after the API failure is reported.
 - Browser interaction is also appropriate for opening the broker's official Web link and reading public regulatory disclosures during the precheck.
 - Treat API writes and UI saves as state-changing actions. A request to score and fill licenses authorizes updates only for the named broker or explicit batch scope.
-- Require read-after-write API verification for normal/batch runs. UI verification is acceptable only during supervised endpoint discovery or one-off fallback.
+- Require read-after-write API verification for normal/batch runs. UI verification is acceptable only during supervised endpoint discovery or a one-off fallback that the user explicitly authorized for that run.
 
 ## Automation runtime
 
 - Unattended automation is allowed only in an environment that already has:
-  - Gemini Web and the confirmed IFXData admin API/browser session available without interactive network approval.
-  - A valid signed-in Gemini session or a supported replacement scoring provider explicitly approved by the user.
+  - Gemini API and the confirmed IFXData admin API available without interactive network approval.
+  - A valid `GEMINI_API_KEY` / `GOOGLE_AI_STUDIO_API_KEY`, or a signed-in Gemini Web session only for fallback.
   - A valid IFXData admin session/API credential with Global write permission.
+- Gemini API calls must be sequential by default: one broker at a time, no parallel license scoring, target no more than 6 requests per minute, wait 8-10 seconds between licenses, pause 30-60 seconds between brokers, keep a daily safety cap of about 1,000 Gemini scoring calls per API key unless a higher active AI Studio limit is confirmed, retry once after 60 seconds on HTTP 429, then stop with `gemini_rate_limited`.
 - DeepSeek network access is optional. If it requires interactive approval, skip DeepSeek translation/reporting and continue local parsing unless the user explicitly requested DeepSeek output.
 - For production-scale batches, prefer keeping routine parsing local. If DeepSeek is needed for translation or exception review, route it through an IFXData backend service so Codex calls only IFXData-controlled APIs.
-- Browser UI fallback is acceptable for supervised testing, but production automation should use confirmed IFXData APIs for reads, writes, and verification.
+- Browser UI fallback is acceptable only after explicit per-run user authorization. Production automation must use confirmed IFXData APIs for reads, writes, and verification.
 - A scheduled run must stop cleanly after its configured batch size or time budget, write a resumable cursor, and avoid infinite retries.
 
 ## Local parsing and optional DeepSeek handling

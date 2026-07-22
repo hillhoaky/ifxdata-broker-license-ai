@@ -40,7 +40,7 @@ Run logs and result files may record that credential headers were supplied, but 
 1. Read broker list/detail and resolve the exact requested broker.
 2. Read the broker's Global license list with stable record IDs.
 3. For each license, read the current detail before scoring to capture existing values and identity fields.
-4. Stage an edit payload from the latest API source record. Preserve all original identity/contact/display fields, and change only the mutable scoring fields required by IFXData:
+4. Stage an edit payload from the latest API source record using the strict `updateLicense` whitelist. Do not submit the raw `listLicense` record because it may contain extra response-only fields that trigger `Validation error`. Preserve all original identity/contact/display fields in the whitelist, and change only the mutable scoring fields required by IFXData:
    - `score`
    - `ai`
    - `beginTime`, only when currently empty and concretely verified as `YYYY-MM-DD`
@@ -62,6 +62,8 @@ Bundled helper:
 ```text
 scripts/ifxdata_admin_api.py update --input <payload.json>          # dry run
 scripts/ifxdata_admin_api.py update --input <payload.json> --execute # live write
+scripts/ifxdata_admin_api.py stage-update --broker-id <id> --license-no <no> --score-result <gemini-result.json>          # build whitelist payload
+scripts/ifxdata_admin_api.py stage-update --broker-id <id> --license-no <no> --score-result <gemini-result.json> --execute # build, write, verify
 ```
 
 Headers:
@@ -94,7 +96,27 @@ Payload shape:
 }
 ```
 
-The stable broker-license row ID is `key`; the license reference ID is `licenseId`. Build this payload by copying the latest source record exactly, then setting only the approved mutable fields. `score` may be sent as a string or integer; normalize audit records to an integer.
+The stable broker-license row ID is `key`; the license reference ID is `licenseId`. Build this payload from the latest source record using only the confirmed whitelist below, then setting only the approved mutable fields. `score` may be sent as a string or integer; normalize audit records to an integer.
+
+Confirmed `updateLicense` whitelist:
+
+- `key`
+- `licenseId`
+- `type`
+- `no`
+- `beginTime`
+- `status`
+- `company`
+- `score`
+- `ai`
+- `fullName`
+- `country`
+- `email`
+- `telphone`
+- `address`
+- `image`
+
+If `beginTime` is the literal API value `Invalid Date`, stage it as an empty string `""`; otherwise IFXData can reject the update with `Validation error`.
 
 Mutable fields for this workflow:
 
