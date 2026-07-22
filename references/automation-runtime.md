@@ -23,7 +23,7 @@ DeepSeek may be added only for optional translation, exception review, or batch 
 
 An unattended run may start only when all items are true:
 
-- Gemini Web is signed in and available, or the user has approved a different scoring provider.
+- Gemini API is configured and available, or Gemini Web is signed in and the user has approved web fallback.
 - IFXData Global broker and license read/write access is available through confirmed APIs.
 - The broker Global `Web link` can be read, or a missing/unavailable website can be recorded without blocking the scoring run.
 - The run has a finite broker scope, batch size, or time budget.
@@ -41,6 +41,8 @@ If Gemini or IFXData API access requires a human approval click during the run, 
 - Do not retry authentication, quota, network-authorization, or permission errors in a loop.
 - Skip records already verified `completed` unless refresh is explicitly requested.
 - Save a result row after every license, not only at batch end.
+- Gemini API scoring must be sequential by default: one broker at a time per worker, no parallel license scoring, target no more than 3 requests per minute per Codex worker when CodexA/CodexB share the same Gemini key/project, wait at least 20 seconds between licenses, pause at least 60 seconds between brokers, keep a daily safety cap of about 1,000 Gemini scoring calls per API key unless a higher active AI Studio limit is confirmed, retry HTTP 429 with 60-second then 120-second backoff, then stop with `gemini_rate_limited`.
+- Use `scripts/gemini_license_api.py` for Gemini API scoring because it includes a local shared rate-limit file (`GEMINI_RATE_LIMIT_FILE`) that coordinates same-machine Codex sessions. If workers run on different machines, use separate Gemini keys/projects or a central IFXData-owned queue for true cross-machine throttling.
 
 ## Production hardening
 

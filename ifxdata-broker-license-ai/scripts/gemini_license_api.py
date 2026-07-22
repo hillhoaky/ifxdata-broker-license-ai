@@ -8,6 +8,7 @@ then a nearby untracked `.env.local`. The key is never printed.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,7 @@ import urllib.request
 
 
 DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_RATE_LIMIT_DIR = "/tmp/ifxdata-broker-license-ai"
 
 
 def load_local_env() -> str | None:
@@ -115,6 +117,9 @@ def request_gemini(
     timeout: float,
     retries: int,
     retry_delay: float,
+    retry_backoff: float,
+    min_interval: float,
+    rate_limit_file: str,
 ) -> str:
     key, _source = api_key()
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
@@ -132,6 +137,9 @@ def request_gemini(
         method="POST",
         headers={"Content-Type": "application/json", "Accept": "application/json"},
     )
+
+    wait_for_shared_rate_limit(min_interval=min_interval, rate_limit_file=rate_limit_file)
+
     for attempt in range(retries + 1):
         try:
             with urllib.request.urlopen(req, timeout=timeout) as response:
@@ -140,7 +148,7 @@ def request_gemini(
         except urllib.error.HTTPError as exc:
             body_preview = exc.read(800).decode("utf-8", "replace")
             if exc.code == 429 and attempt < retries:
-                time.sleep(retry_delay)
+                time.sleep(retry_delay * (retry_backoff ** attempt))
                 continue
             print(json.dumps({"status": "api_unavailable", "reason": "http_error", "http_status": exc.code, "body_preview": body_preview}, ensure_ascii=False, indent=2))
             raise SystemExit(2)
@@ -157,6 +165,41 @@ def request_gemini(
     return "".join(part.get("text", "") for part in parts if isinstance(part, dict))
 
 
+def wait_for_shared_rate_limit(*, min_interval: float, rate_limit_file: str) -> None:
+    """Coordinate Gemini request spacing across local Codex processes.
+
+    This is intentionally simple and local-machine scoped. It prevents two
+    Codex sessions on the same Mac from firing Gemini requests in the same
+    short window when they share one AI Studio key/project.
+    """
+    if min_interval <= 0:
+        return
+
+    state_path = Path(rate_limit_file).expanduser()
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with state_path.open("a+", encoding="utf-8") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        handle.seek(0)
+        raw = handle.read().strip()
+        try:
+            state = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            state = {}
+
+        now = time.time()
+        last_request_at = float(state.get("last_request_at") or 0)
+        wait_seconds = max(0.0, min_interval - (now - last_request_at))
+        if wait_seconds:
+            time.sleep(wait_seconds)
+
+        handle.seek(0)
+        handle.truncate()
+        json.dump({"last_request_at": time.time(), "min_interval": min_interval}, handle)
+        handle.flush()
+        fcntl.flock(handle, fcntl.LOCK_UN)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--license-json", help="JSON file containing one license record")
@@ -171,8 +214,20 @@ def main() -> int:
     parser.add_argument("--max-output-tokens", type=int, default=1600)
     parser.add_argument("--temperature", type=float, default=0.2)
     parser.add_argument("--timeout", type=float, default=60)
-    parser.add_argument("--retries", type=int, default=1, help="Retry count for 429 rate-limit responses")
+    parser.add_argument("--retries", type=int, default=2, help="Retry count for 429 rate-limit responses")
     parser.add_argument("--retry-delay", type=float, default=60, help="Seconds to wait before retrying after 429")
+    parser.add_argument("--retry-backoff", type=float, default=2, help="Multiplier for each repeated 429 retry delay")
+    parser.add_argument(
+        "--min-interval",
+        type=float,
+        default=float(os.getenv("GEMINI_MIN_INTERVAL_SECONDS") or 20),
+        help="Minimum seconds between Gemini requests across local Codex processes",
+    )
+    parser.add_argument(
+        "--rate-limit-file",
+        default=os.getenv("GEMINI_RATE_LIMIT_FILE") or f"{DEFAULT_RATE_LIMIT_DIR}/gemini-rate-limit.json",
+        help="Shared local rate-limit state file",
+    )
     args = parser.parse_args()
 
     if args.license_json:
@@ -196,6 +251,9 @@ def main() -> int:
         timeout=args.timeout,
         retries=args.retries,
         retry_delay=args.retry_delay,
+        retry_backoff=args.retry_backoff,
+        min_interval=args.min_interval,
+        rate_limit_file=args.rate_limit_file,
     )
     parsed = parse_reply(reply)
     parsed.update({"status": "ok" if parsed["valid"] else "needs_review", "model": args.model})

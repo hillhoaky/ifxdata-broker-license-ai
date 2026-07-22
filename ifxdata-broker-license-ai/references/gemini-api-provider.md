@@ -25,13 +25,23 @@ For normal broker-license runs, use conservative throughput rather than the theo
 
 1. Process one broker at a time unless the user explicitly authorizes a batch.
 2. Process licenses sequentially; do not parallelize Gemini scoring.
-3. Target no more than 6 Gemini requests per minute, even if AI Studio shows a higher RPM limit.
-4. Wait 8-10 seconds between license-scoring calls.
-5. After each broker, pause 30-60 seconds before starting the next broker in the same batch.
+3. Target no more than 3 Gemini requests per minute per Codex worker when multiple Codex sessions share the same Google AI Studio key/project.
+4. Wait at least 20 seconds between license-scoring calls. `scripts/gemini_license_api.py` enforces this by default with a shared local rate-limit file so parallel Codex sessions on the same machine queue instead of colliding.
+5. After each broker, pause at least 60 seconds before starting the next broker in the same batch.
 6. Keep a daily safety cap of about 1,000 Gemini scoring calls per API key unless the user confirms a higher active AI Studio limit. This leaves buffer below a typical 1,500 RPD free-tier limit.
-7. If Gemini returns HTTP 429, wait 60 seconds and retry once.
-8. If a second 429 occurs for the same license, stop the broker run and report `gemini_rate_limited`.
+7. If Gemini returns HTTP 429, retry with exponential backoff: wait 60 seconds before the first retry and 120 seconds before the second retry.
+8. If the request still returns 429 for the same license after the configured retries, stop the broker run and report `gemini_rate_limited`.
 9. Do not fall back to Gemini Web automatically after rate limiting unless the user explicitly authorizes web fallback.
+
+Default script controls:
+
+- `GEMINI_MIN_INTERVAL_SECONDS=20`
+- `GEMINI_RATE_LIMIT_FILE=/tmp/ifxdata-broker-license-ai/gemini-rate-limit.json`
+- `--retries 2`
+- `--retry-delay 60`
+- `--retry-backoff 2`
+
+When CodexA and CodexB run on different machines or environments, the local shared file cannot coordinate both workers. In that case, keep the same 20-second per-license pace on each worker, pause 60 seconds between brokers, and consider using separate AI Studio projects/API keys or an IFXData-owned central queue for production batches.
 
 For larger batches, use a cursor and resume later instead of forcing retries. Paid Gemini API tiers can provide higher limits; check the active project limits in AI Studio before increasing throughput.
 
