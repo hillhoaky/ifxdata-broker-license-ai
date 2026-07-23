@@ -242,9 +242,12 @@ Payload shape:
 
 This endpoint is for adding licenses or confirmed full-list saves. Do not prefer it for existing-license score updates when `updateLicense` is available. Because the endpoint name is `addLicenseToBroker`, treat its list semantics carefully:
 
-- For a single-license supervised test, submit only the user-approved license and verify immediately.
-- For unattended/batch updates, prefer sending a complete current `licenseList` for the broker after merging changed fields, unless a live API test proves partial lists are safe and do not remove unchanged licenses.
-- Never submit a generated `licenseList` that omits existing licenses unless the user explicitly asked to delete them.
+- For user-approved missing-license additions, submit only the new missing license rows when prior live tests confirm partial-add semantics are safe. Verify that existing rows remain present and that each new row appears by `(no, company, type)` after save.
+- If operating in a new/unverified environment, use a complete current `licenseList` after merging changed fields, unless the user explicitly chooses partial-add mode.
+- Never submit a generated full `licenseList` that omits existing licenses unless the user explicitly asked to delete them.
+- Before `addLicenseToBroker`, de-duplicate staged new rows against the latest API read using `(normalized no, normalized company, exact type)`. If a duplicate exists, skip it and report `already_present`.
+- For multi-activity licenses, create one row per IFXData type. Do not combine values such as `Type 1/2/5` into a single free-form type.
+- For official website/regulator contact fields, leave `email`/`telphone` empty unless the value is explicitly tied to the same regulated legal entity. Do not use generic support contacts as legal-entity contacts.
 
 Mutable fields for this workflow:
 
@@ -267,6 +270,17 @@ Preserved identity/display fields:
 - `image`
 
 The success response still needs one live sample. Regardless of the response body, verify by fresh license read after save.
+
+## Timeout-safe writes
+
+IFXData write endpoints can occasionally save successfully while the HTTP client times out waiting for the response. When a POST to `updateLicense` or `addLicenseToBroker` times out:
+
+1. Do not immediately submit the same write again.
+2. Perform a fresh API read of the affected broker/license list.
+3. For `updateLicense`, verify the target row by `key` and compare only the intended fields.
+4. For `addLicenseToBroker`, verify every new row by `(no, company, type)` and confirm the previous existing-row count has not unexpectedly dropped.
+5. If read-back matches, record `updated_after_timeout` or `added_after_timeout`.
+6. If read-back does not match, stage the operation for one supervised retry, not an uncontrolled loop.
 
 For optional missing-field enrichment, only fill empty values already present in the payload shape:
 

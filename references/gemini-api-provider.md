@@ -30,8 +30,9 @@ For normal broker-license runs, use conservative throughput rather than the theo
 5. After each broker, pause at least 60 seconds before starting the next broker in the same batch.
 6. Keep a daily safety cap of about 1,000 Gemini scoring calls per API key unless the user confirms a higher active AI Studio limit. This leaves buffer below a typical 1,500 RPD free-tier limit.
 7. If Gemini returns HTTP 429, retry with exponential backoff: wait 60 seconds before the first retry and 120 seconds before the second retry.
-8. If the request still returns 429 for the same license after the configured retries, stop the broker run and report `gemini_rate_limited`.
+8. If the request still returns 429 for the same license after the configured retries, stop new Gemini requests for the current broker and report `gemini_rate_limited`.
 9. Do not fall back to Gemini Web automatically after rate limiting unless the user explicitly authorizes web fallback.
+10. When a grouped response is invalid for only part of a broker, write already-valid parsed results first, then retry only unresolved licenses after a cool-down. If the retry gets 429 or another provider HTTP error, stop and leave those licenses unresolved for a later resume. Do not keep cycling through single-license retries.
 
 Default script controls:
 
@@ -62,6 +63,8 @@ The API script returns structured JSON:
 ```
 
 Treat `status != "ok"` or `valid != true` as `needs_review` unless the error is clearly a provider outage or rate limit.
+
+For grouped outputs, bind results to source licenses by the input group order only when `license_record_id` is absent or unreliable and the output count exactly equals the input count. If the result count differs, do not guess; mark the group `needs_review` and retry only after rate limits allow.
 
 ## Web fallback
 
