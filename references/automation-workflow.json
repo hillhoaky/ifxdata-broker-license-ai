@@ -1,6 +1,6 @@
 {
   "workflow": "ifxdata-broker-license-ai-score",
-  "version": 9,
+  "version": 10,
   "scope": "global-only",
   "entrypoint": "https://admin.ifxdata.com/dashboard/broker-new?page={page}",
   "ifxdata_access": {
@@ -46,7 +46,10 @@
     "requires_ifxdata_global_write_access": true,
     "deepseek_optional": true,
     "default_batch_size_early_rollout": {"brokers": 1, "licenses": 10},
-    "default_cadence_after_supervised_success": "PT30M",
+    "default_cadence_after_supervised_success": "PT10M",
+    "gemini_min_interval_seconds": 120,
+    "broker_cooldown_seconds": 600,
+    "heartbeat_max_brokers_per_wakeup": 1,
     "cursor_required": true,
     "reference": "references/automation-runtime.md"
   },

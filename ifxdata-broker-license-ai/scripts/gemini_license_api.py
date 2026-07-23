@@ -349,12 +349,12 @@ def main() -> int:
     parser.add_argument("--temperature", type=float, default=0.2)
     parser.add_argument("--timeout", type=float, default=60)
     parser.add_argument("--retries", type=int, default=2, help="Retry count for 429 rate-limit responses")
-    parser.add_argument("--retry-delay", type=float, default=60, help="Seconds to wait before retrying after 429")
-    parser.add_argument("--retry-backoff", type=float, default=2, help="Multiplier for each repeated 429 retry delay")
+    parser.add_argument("--retry-delay", type=float, default=180, help="Seconds to wait before retrying after 429")
+    parser.add_argument("--retry-backoff", type=float, default=1.67, help="Multiplier for each repeated 429 retry delay")
     parser.add_argument(
         "--min-interval",
         type=float,
-        default=float(os.getenv("GEMINI_MIN_INTERVAL_SECONDS") or 20),
+        default=float(os.getenv("GEMINI_MIN_INTERVAL_SECONDS") or 120),
         help="Minimum seconds between Gemini requests across local Codex processes",
     )
     parser.add_argument(
