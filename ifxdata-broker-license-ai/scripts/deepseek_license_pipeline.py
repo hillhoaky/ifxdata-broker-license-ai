@@ -229,6 +229,43 @@ def report(results: list[dict[str, Any]]) -> dict[str, Any]:
     return call_deepseek(system, "Create the run report as json:\n" + json.dumps(compact, ensure_ascii=False))
 
 
+def disclosure(text: str) -> dict[str, Any]:
+    system = """You structure public regulatory disclosure text for IFXData broker-license prechecks. Return JSON only. Extract only facts explicitly present in the supplied public text. Output keys: status, disclosures, missing_or_unclear, notes. Each disclosure should include regulator, jurisdiction, country, legal_entity, license_number, license_type_or_scope, status, begin_time, address, email, telephone, source_evidence. Use null for absent fields. Do not invent values."""
+    return call_deepseek(system, "Structure this public disclosure text as json:\n" + text[:20000])
+
+
+def type_suggest(data: dict[str, Any]) -> dict[str, Any]:
+    redacted, mapping = redact_source(data)
+    system = """Suggest the nearest existing IFXData license type for a redacted regulatory license. Return JSON only with keys status, suggested_type, confidence, reason, alternatives, needs_new_type. Do not create a score. Prefer exact official wording and known dropdown values supplied in the input. Preserve placeholders."""
+    user = "Suggest license type for this redacted record:\n" + json.dumps(redacted, ensure_ascii=False)
+    assert_no_sensitive_leak(user, data)
+    result = call_deepseek(system, user)
+    result["redaction_applied"] = True
+    result["redaction_mapping_keys"] = sorted(mapping.keys())
+    return result
+
+
+def compress_text(text: str, max_words: int) -> dict[str, Any]:
+    system = f"""Compress the supplied English IFXData license introduction to at most {max_words} words. Return JSON only with keys status, compressed_text, word_count, changed_meaning. Preserve all substantive risk and regulator reasoning. Do not add facts or scores."""
+    return call_deepseek(system, text[:24000])
+
+
+def translate_text(text: str, target: str) -> dict[str, Any]:
+    system = """Translate IFXData operational text. Return JSON only with keys status, translated_text, target_language. Preserve names, license numbers, URLs, and field labels exactly. Do not add facts."""
+    return call_deepseek(system, f"Target language: {target}\n\nText:\n{text[:24000]}")
+
+
+def exception_review(data: dict[str, Any]) -> dict[str, Any]:
+    redacted, mapping = redact_source(data)
+    system = """Review a redacted IFXData broker-license automation exception. Return JSON only with keys status, issue_type, explanation_zh, next_safe_step, should_retry_now. Do not request private values and do not recommend duplicate writes when read-back verification is needed."""
+    user = "Review this redacted exception as json:\n" + json.dumps(redacted, ensure_ascii=False)
+    assert_no_sensitive_leak(user, data)
+    result = call_deepseek(system, user)
+    result["redaction_applied"] = True
+    result["redaction_mapping_keys"] = sorted(mapping.keys())
+    return result
+
+
 def redact_command(data: Any) -> Any:
     if isinstance(data, list):
         return [redact_source(item)[0] if isinstance(item, dict) else item for item in data]
@@ -270,6 +307,18 @@ def main() -> int:
     p_parse.add_argument("--source", type=Path)
     p_report = sub.add_parser("report")
     p_report.add_argument("results", type=Path)
+    p_disc = sub.add_parser("disclosure")
+    p_disc.add_argument("text", type=Path)
+    p_type = sub.add_parser("type-suggest")
+    p_type.add_argument("source", type=Path)
+    p_comp = sub.add_parser("compress")
+    p_comp.add_argument("text", type=Path)
+    p_comp.add_argument("--max-words", type=int, default=400)
+    p_trans = sub.add_parser("translate")
+    p_trans.add_argument("text", type=Path)
+    p_trans.add_argument("--target", default="zh")
+    p_exc = sub.add_parser("exception")
+    p_exc.add_argument("source", type=Path)
     p_redact = sub.add_parser("redact")
     p_redact.add_argument("source", type=Path)
     sub.add_parser("self-test")
@@ -285,6 +334,16 @@ def main() -> int:
             if not isinstance(data, list):
                 raise ValueError("report input must be a JSON array")
             result = report(data)
+        elif args.command == "disclosure":
+            result = disclosure(args.text.read_text(encoding="utf-8"))
+        elif args.command == "type-suggest":
+            result = type_suggest(read_json(args.source))
+        elif args.command == "compress":
+            result = compress_text(args.text.read_text(encoding="utf-8"), args.max_words)
+        elif args.command == "translate":
+            result = translate_text(args.text.read_text(encoding="utf-8"), args.target)
+        elif args.command == "exception":
+            result = exception_review(read_json(args.source))
         elif args.command == "redact":
             result = redact_command(read_json(args.source))
         else:

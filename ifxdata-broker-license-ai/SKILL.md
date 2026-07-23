@@ -21,7 +21,7 @@ description: Precheck a broker's official website disclosures against IFXData Gl
 - Prefer Google AI Studio Gemini API for license scoring when `GEMINI_API_KEY` or `GOOGLE_AI_STUDIO_API_KEY` is configured. Use `scripts/gemini_license_api.py` with `gemini-2.5-flash` and `thinkingBudget: 0`. Use the signed-in Google Gemini web app at `https://gemini.google.com/app` only as fallback when the API is unavailable or the user explicitly asks for web Gemini.
 - Use local deterministic parsing and validation for routine Gemini answers. Do not require DeepSeek for normal scoring, parsing, validation, or write-back.
 - When IFXData license fields such as country, begin time of licence, email, telephone, or address are empty, ask Gemini for optional supplemental values during the scoring prompt. Fill only concrete values into empty fields; leave unresolved fields blank. Do not overwrite non-empty IFXData fields from Gemini supplemental output unless the user explicitly corrected/authorized that field.
-- Use DeepSeek only as optional support for translation, unresolved exception review, or batch report summarization, and only after replacing private IFXData fields with placeholders. Never send broker names, broker IDs, license record IDs, license numbers, company names, addresses, emails, phone numbers, cookies, or raw browser snapshots to DeepSeek.
+- Use DeepSeek as the default supporting layer for non-scoring language/structure tasks when `DEEPSEEK_API_KEY` is available: official-disclosure structuring, website-vs-backend difference summaries, license-type suggestions, English compression/translation, Chinese batch reports, and exception review. Do not use DeepSeek for final license scoring, API write decisions, or regulator fact verification. Redact private IFXData values unless the text is already public official website/regulator disclosure authorized for processing.
 - Preserve Gemini's substantive English assessment. Remove interface noise and duplicated prompt text, but do not invent, translate, or materially rewrite its reasoning.
 - Accept only one explicit integer score from 0 through 100. Never infer a score from tone, category subscores, dates, or license numbers.
 - Match a result to the source license using broker ID plus license record ID when available; otherwise require the normalized tuple `(institution, license number, company registration name)`.
@@ -44,7 +44,7 @@ description: Precheck a broker's official website disclosures against IFXData Gl
 - Read [references/api-first-implementation.md](references/api-first-implementation.md) before implementing, batching, or optimizing IFXData access. Use `scripts/ifxdata_api_health_check.py` for the required pre-run API health check.
 - Read [references/automation-workflow.json](references/automation-workflow.json) before batch execution, resuming a run, or implementing orchestration.
 - Read [references/automation-runtime.md](references/automation-runtime.md) before creating scheduled, unattended, or batch automation.
-- Read [references/deepseek-pipeline.md](references/deepseek-pipeline.md) only before optional DeepSeek translation, reporting, or exception-review stages.
+- Read [references/deepseek-pipeline.md](references/deepseek-pipeline.md) before disclosure structuring, type suggestions, translation/compression, reporting, or exception-review stages.
 
 ## Workflow
 
@@ -56,7 +56,7 @@ description: Precheck a broker's official website disclosures against IFXData Gl
 5. Enumerate all license records in API/display order. Capture the source fields defined in `data-fields.md`, including the stable license record ID.
 6. Stage 1 — run the official-website precheck from `official-website-precheck.md`. Compare website-disclosed regulators, legal entities, license numbers, and scopes with IFXData Global license records before scoring:
    - If the official website cannot be opened, continue with current IFXData Global license data and record `website_unavailable`.
-   - If the official website shows mismatched company names, license numbers, scopes, or missing/extra licenses, stop before Gemini scoring and report the differences so the user can correct IFXData first.
+   - If the official website shows mismatched company names, license numbers, scopes, or missing/extra licenses, use DeepSeek to structure/summarize the public disclosure or redacted difference list when available, then stop before Gemini scoring and report the differences so the user can correct IFXData first.
    - If the user says the backend has been corrected, perform a fresh API read before scoring.
    - If the user explicitly authorizes Codex to make corrections, apply only confirmed base-field corrections through `updateLicense`, verify by API read, then restart the comparison/scoring stage from fresh backend data.
    - If the user explicitly authorizes continuing despite differences, keep the affected licenses marked for careful review.
@@ -75,7 +75,7 @@ description: Precheck a broker's official website disclosures against IFXData Gl
    - `beginTime`: only when empty in IFXData and Gemini/source verification returns a concrete `YYYY-MM-DD` date.
 12. Verify with a fresh API read of the same Global license record. Mark completion only after API verification succeeds.
 13. Continue to the next displayed license. Preserve a resumable result for every license: `completed`, `skipped_existing`, `needs_review`, `blocked`, or `failed_verification`.
-14. At batch end, summarize the local result rows. Include the official-website precheck status. DeepSeek report summarization is optional and must not block completion.
+14. At batch end, summarize the local result rows. Include the official-website precheck status. Use DeepSeek for the Chinese batch summary when configured; if unavailable, produce the summary locally.
 
 ## Browser and API selection
 
@@ -111,16 +111,27 @@ python3 scripts/parse_gemini_license_score.py gemini-answer.txt --source license
 - If parsing returns `needs_review`, do not resolve the narrative with Codex. Ask Gemini once again with the same template or leave the record unresolved.
 - Store the assessment text in English. Remove citations only if they are interface artifacts; retain useful source names and URLs when part of Gemini's answer.
 
-DeepSeek is optional:
+DeepSeek support:
 
-- Run optional redacted preflight only for complex exception review:
+- Use DeepSeek for suitable auxiliary work, not final scoring. Preferred commands:
+
+```bash
+python3 scripts/deepseek_license_pipeline.py disclosure website-disclosure.txt
+python3 scripts/deepseek_license_pipeline.py type-suggest license-or-disclosure.json
+python3 scripts/deepseek_license_pipeline.py compress text.txt --max-words 400
+python3 scripts/deepseek_license_pipeline.py translate text.txt --target zh
+python3 scripts/deepseek_license_pipeline.py exception exception.json
+python3 scripts/deepseek_license_pipeline.py report run-results.json
+```
+
+- Run redacted preflight for complex exception review:
 
 ```bash
 python3 scripts/deepseek_license_pipeline.py preflight license.json
 ```
 
 - The DeepSeek script must block before network calls if redaction fails. Treat `redaction_failed_sensitive_values_remaining` as a hard stop.
-- Generate an optional compact batch report:
+- Generate a compact batch report:
 
 ```bash
 python3 scripts/deepseek_license_pipeline.py report run-results.json

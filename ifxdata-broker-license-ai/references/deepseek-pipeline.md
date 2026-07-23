@@ -1,6 +1,26 @@
 # DeepSeek pipeline
 
-Use DeepSeek only as an optional supporting layer with redacted placeholders. Gemini Web remains the only provider that decides the license score and substantive assessment. Routine parsing and validation must use the local parser in `scripts/parse_gemini_license_score.py`.
+Use DeepSeek as the default supporting layer for suitable non-scoring tasks when `DEEPSEEK_API_KEY` is configured. Gemini remains the provider for the final license score and substantive score assessment. Local scripts remain responsible for IFXData API reads/writes, deterministic parsing/validation, duplicate checks, and read-after-write verification.
+
+## Allowed DeepSeek tasks
+
+Use DeepSeek for:
+
+- `disclosure_structuring`: turn public official website/regulator disclosure text into structured license rows.
+- `difference_summary`: summarize backend-vs-website differences for the user.
+- `license_type_suggestion`: suggest the nearest IFXData standard type from public or redacted data.
+- `text_compression`: shorten Gemini introductions without changing meaning when text is too long.
+- `translation`: Chinese/English translation for reports, notes, and type descriptions.
+- `summary_report`: Chinese broker/page/batch completion reports.
+- `exception_review`: explain API/Gemini/rate-limit/identity mismatch issues.
+
+Do not use DeepSeek for:
+
+- final license scoring;
+- regulator fact verification that should come from official websites/registers;
+- deciding whether an API write is safe;
+- writing IFXData records;
+- parsing score when the local parser succeeds.
 
 ## Configuration
 
@@ -12,9 +32,51 @@ For unattended automation, DeepSeek must be skipped unless the runtime has non-i
 
 For production batches that need DeepSeek translation or exception review, prefer an IFXData backend DeepSeek proxy. Codex then calls IFXData-controlled endpoints and does not directly hold or use the DeepSeek key.
 
-Never send private IFXData values to DeepSeek. Before any DeepSeek call, replace broker names, broker IDs, license record IDs, license numbers, company names, addresses, emails, and phone numbers with placeholders such as `[BROKER_NAME]`, `[LICENSE_NUMBER]`, `[LICENSED_ENTITY]`, and `[REGISTERED_ADDRESS]`. If any original private value remains in the outbound payload, stop with `redaction_failed_sensitive_values_remaining`.
+Never send private IFXData values to DeepSeek unless the user explicitly authorizes that exact payload. Before DeepSeek calls involving IFXData backend records, replace broker names, broker IDs, license record IDs, license numbers, company names, addresses, emails, and phone numbers with placeholders such as `[BROKER_NAME]`, `[LICENSE_NUMBER]`, `[LICENSED_ENTITY]`, and `[REGISTERED_ADDRESS]`. If any original private value remains in the outbound payload, stop with `redaction_failed_sensitive_values_remaining`.
+
+Public official website/regulator disclosure text may be sent to DeepSeek for structuring because it is already public and needed for the precheck. Never include credentials, cookies, admin screenshots, or raw private backend snapshots in that public-disclosure payload.
 
 ## Commands
+
+### Public disclosure structuring
+
+```bash
+python3 scripts/deepseek_license_pipeline.py disclosure website-disclosure.txt
+```
+
+Input is public text copied or extracted from a broker's official website or official regulator page. Output JSON contains `disclosures` with regulator/jurisdiction, legal entity, license number, type/scope, country, address, email, telephone, status, and evidence notes when present.
+
+### License type suggestion
+
+```bash
+python3 scripts/deepseek_license_pipeline.py type-suggest license-or-disclosure.json
+```
+
+Input should include the regulator, country, official wording, current IFXData type if any, and known standard types. Output suggests the closest IFXData type and a short reason. DeepSeek only suggests; local rules and the current dropdown list must still control the final value.
+
+### Text compression
+
+```bash
+python3 scripts/deepseek_license_pipeline.py compress ai-introduction.txt --max-words 400
+```
+
+Use when Gemini produces overly long English text. DeepSeek may shorten wording but must preserve the score rationale and must not add facts.
+
+### Translation
+
+```bash
+python3 scripts/deepseek_license_pipeline.py translate text.txt --target zh
+```
+
+Use for Chinese reports, type descriptions, or operational summaries.
+
+### Exception review
+
+```bash
+python3 scripts/deepseek_license_pipeline.py exception exception.json
+```
+
+Use for redacted API/Gemini/rate-limit/identity mismatch issues. Output should explain what happened and the next safe step.
 
 ### Optional preflight
 
