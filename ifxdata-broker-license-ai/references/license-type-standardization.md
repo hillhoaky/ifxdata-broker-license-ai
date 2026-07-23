@@ -33,7 +33,7 @@ Use this reference before changing an IFXData broker license `type`. The goal is
 | Hong Kong SFC | Type 5 / Advising on futures contracts | `Advising on futures contracts(Type 5)` | Futures advice/research. |
 | Singapore MAS | Capital Markets Services Licence | `Capital Markets Services License` | Use for CMS permissions. |
 | Japan FSA | Type I Financial Instruments Business | `Type I Financial Instruments Business` | Use for Type I FIBO licences. |
-| Cayman CIMA | Securities Investment Business Licence / SIBL | `SILB License` | IFXData currently spells this as SILB; use the existing dropdown value. |
+| Cayman CIMA | Securities Investment Business Licence / SIBL | `SIBL License` | Use the corrected IFXData dropdown value for Cayman Securities Investment Business Licence records. |
 | UAE SCA | Category 5, financial consultation, promotion, introduction | `Category 5 License` | Not a full trading/execution licence. |
 | UAE SCA | Category 1 | `Category 1 License` | Use only when official category is clearly Category 1. |
 | Dubai DFSA | Category 3A brokerage permissions | `Category 3A License` | Use for DFSA Category 3A when disclosed. |
