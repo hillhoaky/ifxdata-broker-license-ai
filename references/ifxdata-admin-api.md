@@ -49,6 +49,56 @@ Run logs and result files may record that credential headers were supplied, but 
 6. Perform a fresh API read of the same record and compare saved values exactly.
 7. Record request metadata without credentials: endpoint label, method, status code, response ID when present, access mode, saved timestamp, and verified timestamp.
 
+## Confirmed license-type list endpoint
+
+The Global license edit dropdown is sourced from the English license-type table:
+
+```text
+GET https://api.ifxdata.com/api/v1/admin/broker/getAllLicenseType?language=en&pageSize=500&pageNum=1
+```
+
+Use this endpoint before type corrections. Match by exact `name` first, then by `licenseType`/meaning. Do not write arbitrary type text to a broker license if the value is not present in this list, unless the type has just been created and verified.
+
+Important response fields:
+
+- `id`
+- `name`: dropdown/display value used in broker license payload `type`
+- `licenseType`
+- `typeRange`: range/scope text
+- `note`: short introduction
+- `color`
+- `language`
+
+## Confirmed license-type create endpoint
+
+When no close existing type exists and the user has authorized maintaining license types, create a new English license type before using it on broker licenses:
+
+```text
+POST https://api.ifxdata.com/api/v1/admin/broker/addLicenseType
+```
+
+Recommended payload shape:
+
+```json
+{
+  "name": "OTC Derivative Provider",
+  "licenseType": "OTC Derivative Provider",
+  "typeRange": "Authorises an entity to act as a counterparty or provider for over-the-counter derivative products, subject to the regulator's approved conditions.",
+  "note": "An OTC Derivative Provider authorisation allows regulated OTC derivatives business. It is commonly relevant to CFDs and other derivative products.",
+  "language": "en",
+  "color": "Black"
+}
+```
+
+Creation rules:
+
+- Fill `name` from the user's intended “enter license name”.
+- Fill `typeRange` from “range optional”.
+- Fill `note` from “note optional”.
+- Use English text only.
+- Set `color` to `Black` for newly created types unless the user specifies otherwise.
+- After creation, re-read `getAllLicenseType?language=en` and verify the new `name` exists before using it in any broker `updateLicense` payload.
+
 ## Confirmed existing-license edit endpoint
 
 Use this endpoint for normal score, AI introduction, and missing-field enrichment on an existing license:
