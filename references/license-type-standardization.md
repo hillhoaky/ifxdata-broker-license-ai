@@ -33,6 +33,7 @@ Use this reference before changing an IFXData broker license `type`. The goal is
 | Hong Kong SFC | Type 5 / Advising on futures contracts | `Advising on futures contracts(Type 5)` | Futures advice/research. |
 | Singapore MAS | Capital Markets Services Licence | `Capital Markets Services License` | Use for CMS permissions. |
 | Japan FSA | Type I Financial Instruments Business | `Type I Financial Instruments Business` | Use for Type I FIBO licences. |
+| Kenya CMA | CMA licence, derivatives broker, non-dealing online foreign exchange broker, authorised securities dealer | `Capital Markets Authority License` | Use as the general Kenya Capital Markets Authority licence type unless a more exact approved subtype is later created. |
 | Cayman CIMA | Securities Investment Business Licence / SIBL | `SIBL License` | Use the corrected IFXData dropdown value for Cayman Securities Investment Business Licence records. |
 | UAE SCA | Category 5, financial consultation, promotion, introduction | `Category 5 License` | Not a full trading/execution licence. |
 | UAE SCA | Category 1 | `Category 1 License` | Use only when official category is clearly Category 1. |
@@ -55,6 +56,7 @@ Use this reference before changing an IFXData broker license `type`. The goal is
 - `Appointed Representative(AR)`: representative status under another authorised firm.
 - `European Authorized Representative (EEA)`: EEA passporting/representative status.
 - `Financial Service Provider Registration`: registry-based FSP status, such as New Zealand FSPR-style records; weaker than a full financial trading licence.
+- `Capital Markets Authority License`: capital markets regulator licence, currently used for Kenya CMA market intermediary records.
 - `Financial Service Corporate`, `Financial Service`, `Common Financial Service License`: fallback only when a regulator's exact type is missing and no better existing option fits.
 
 ## New type candidates
@@ -86,4 +88,13 @@ Create only when needed and user-authorized. Suggested English definitions:
 - `licenseType`: `Financial Service Provider Registration`
 - `typeRange`: `Applies to financial service provider registrations, including registry-based authorisation or disclosure status. It may cover financial-service activities only within the limits shown by the relevant registry or regulator.`
 - `note`: `A Financial Service Provider Registration confirms that a firm is listed as a financial service provider, but it is usually a registration status rather than a full trading or derivatives licence.`
+- `color`: `Black`
+
+### Capital Markets Authority License
+
+- IFXData ID at creation time: `2254`
+- `name`: `Capital Markets Authority License`
+- `licenseType`: `Capital Markets Authority License`
+- `typeRange`: `Applies to capital market intermediary activities approved by the regulator, including securities dealers, derivatives brokers, non-dealing online foreign exchange brokers, investment advisers and fund managers.`
+- `note`: `A Capital Markets Authority License is issued by a national capital markets regulator such as Kenya CMA. It authorises approved market intermediary services within the permitted scope.`
 - `color`: `Black`
