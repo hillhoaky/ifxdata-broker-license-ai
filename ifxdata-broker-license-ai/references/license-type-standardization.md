@@ -38,6 +38,7 @@ Use this reference before changing an IFXData broker license `type`. The goal is
 | UAE SCA | Category 1 | `Category 1 License` | Use only when official category is clearly Category 1. |
 | Dubai DFSA | Category 3A brokerage permissions | `Category 3A License` | Use for DFSA Category 3A when disclosed. |
 | United States FinCEN | MSB registration | `Money Services Business` | This is registration/AML compliance, not forex/securities/CFD authorization. |
+| New Zealand FSPR or similar registry | Financial Service Provider Registration / FSP registration | `Financial Service Provider Registration` | Use for registry-based financial service provider status; it is not automatically a full trading, securities, forex, or derivatives licence. |
 | Virtual asset / crypto | VASP, crypto exchange registration, virtual asset service provider | `Virtual asset service provider` | Use for crypto/virtual-asset registration. |
 | United Kingdom Companies House or similar | Company registration only | `Business Registration` | Not a financial regulatory licence. |
 | Generic non-financial company registry | Commercial/company registration | `Common Business Registration` | Use when it is clearly not financial authorization. |
@@ -53,6 +54,7 @@ Use this reference before changing an IFXData broker license `type`. The goal is
 - `Investment Advisory License`: advice/research only, no trading execution.
 - `Appointed Representative(AR)`: representative status under another authorised firm.
 - `European Authorized Representative (EEA)`: EEA passporting/representative status.
+- `Financial Service Provider Registration`: registry-based FSP status, such as New Zealand FSPR-style records; weaker than a full financial trading licence.
 - `Financial Service Corporate`, `Financial Service`, `Common Financial Service License`: fallback only when a regulator's exact type is missing and no better existing option fits.
 
 ## New type candidates
@@ -73,4 +75,15 @@ Create only when needed and user-authorized. Suggested English definitions:
 - `licenseType`: `Category I Financial Services Provider`
 - `typeRange`: `Covers approved advice and intermediary services for financial products under the regulator's authorised product categories.`
 - `note`: `A Category I FSP licence allows a firm to provide approved financial advice and intermediary services, but it is not automatically a full CFD or market-making licence.`
+- `color`: `Black`
+
+## Existing user-created type
+
+### Financial Service Provider Registration
+
+- IFXData ID at creation time: `2198`
+- `name`: `Financial Service Provider Registration`
+- `licenseType`: `Financial Service Provider Registration`
+- `typeRange`: `Applies to financial service provider registrations, including registry-based authorisation or disclosure status. It may cover financial-service activities only within the limits shown by the relevant registry or regulator.`
+- `note`: `A Financial Service Provider Registration confirms that a firm is listed as a financial service provider, but it is usually a registration status rather than a full trading or derivatives licence.`
 - `color`: `Black`
