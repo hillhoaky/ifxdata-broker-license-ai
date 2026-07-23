@@ -64,6 +64,8 @@ Use these comparison statuses:
 
 - If every license is `matched` or only has immaterial wording differences, continue to Gemini scoring.
 - If any status is `number_mismatch`, `entity_mismatch`, `scope_mismatch`, `backend_missing`, or `unclear`, stop before Gemini scoring and report the differences to the user. Let the user correct IFXData first or explicitly authorize continuing with current values.
+- If the user explicitly says `你去修改`, `帮我修改`, `可以直接改`, or an equivalent authorization for the current broker, Codex may correct confirmed base fields through the IFXData API before scoring. Only change fields directly supported by official website, regulator registry, company registry, or user-provided corrections. Allowed fields are `type`, `no`, `beginTime`, `status`, `company`, `fullName`, `country`, `email`, `telphone`, and `address`. Never change `key`, `licenseId`, `image`, `score`, or `ai` during this correction stage.
+- Before an authorized correction write, show a compact planned-change list. After writing, verify with a fresh API read. If verification fails, stop and report `failed_correction_verification`; do not ask Gemini.
 - If the website discloses licenses missing from IFXData, do not ask Gemini to score the backend licenses yet. Give the user the missing-license list first, wait for the user to add/correct the backend records, then perform a fresh API read before scoring.
 - If IFXData contains a license the website no longer discloses, report it as `website_missing`. Do not delete or change it unless the user instructs you. If the status is revoked/cancelled and already represented in IFXData, it may be left as-is and skipped unless the user requests scoring.
 - If a website cannot be opened, do not block the scoring run. Continue with current IFXData values and record `website_unavailable`.
@@ -77,7 +79,7 @@ When differences are found, summarize them as a compact correction list:
 - `website_missing`: backend regulator, legal entity, license number, and why no matching website disclosure was found.
 - `number_mismatch`, `entity_mismatch`, `scope_mismatch`, `address_mismatch`: show backend value vs website value.
 
-After the user says `已修改`, `已添加`, or otherwise confirms correction, reload IFXData Global licenses through the API and restart the comparison/scoring stage from the fresh backend data.
+After the user says `已修改`, `已添加`, or otherwise confirms correction, reload IFXData Global licenses through the API and restart the comparison/scoring stage from the fresh backend data. If the user authorizes Codex to modify the fields, write only confirmed field corrections, reload IFXData through the API, and then continue.
 
 ## Output record
 
