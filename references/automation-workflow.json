@@ -123,6 +123,12 @@
     "authorized_precheck_correction_allowed": true,
     "authorized_precheck_correction_fields": ["type", "no", "beginTime", "status", "company", "fullName", "country", "email", "telphone", "address"],
     "authorized_precheck_correction_never_fields": ["key", "licenseId", "image", "score", "ai"],
+    "license_type_must_use_existing_option": true,
+    "known_license_type_mappings": {
+      "fincen_msb_registration": "Money Services Business",
+      "crypto_exchange_registration": "Virtual asset service provider",
+      "virtual_asset_registration": "Virtual asset service provider"
+    },
     "default_gemini_group_size_when_four_or_more_licenses": 2,
     "prefer_ifxdata_api": true,
     "require_api_for_normal_runs": true,
