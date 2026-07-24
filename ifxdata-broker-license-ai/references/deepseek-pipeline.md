@@ -17,10 +17,31 @@ Use DeepSeek for:
 Do not use DeepSeek for:
 
 - final license scoring;
+- revoked/cancelled/withdrawn/surrendered/expired confirmation;
 - regulator fact verification that should come from official websites/registers;
 - deciding whether an API write is safe;
+- deciding whether to add, update, or mark a license inactive;
+- IFXData read-after-write verification;
 - writing IFXData records;
 - parsing score when the local parser succeeds.
+
+## Routing matrix
+
+| Workflow step | DeepSeek usage | Final authority |
+|---|---|---|
+| Public official website/regulator disclosure structuring | Allowed; send only public text and request candidate license rows | Official source plus IFXData API read |
+| Backend-vs-website difference summary | Allowed with redacted/private-safe data | Local comparison rules |
+| Missing-license candidate draft | Allowed for public disclosure structuring only | IFXData license-type list, local standardization rules, fresh API verification |
+| License type suggestion | Allowed when current dropdown options are supplied | `license-type-standardization.md` plus verified dropdown list |
+| Gemini AI Introduction compression | Allowed when text is too long | Gemini substantive answer; DeepSeek must not add facts |
+| Chinese page/broker/batch report | Allowed with compact redacted run results | Fresh API verification result |
+| Exception review | Allowed with redacted errors and context | User direction or local safety rules |
+| Final score | Not allowed | Gemini |
+| License information accuracy / concern resolution | Not allowed | Gemini plus official/regulator evidence |
+| Revoked/cancelled confirmation | Not allowed | Official website absence plus focused Gemini cancellation check |
+| Regulator fact lookup | Not allowed | Official broker/regulator/company-register sources |
+| Write/add/update decision | Not allowed | Local rules, user authorization, IFXData API state |
+| Read-after-write verification | Not allowed | IFXData API |
 
 ## Configuration
 

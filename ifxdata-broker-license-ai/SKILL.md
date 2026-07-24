@@ -25,6 +25,7 @@ description: Precheck a broker's official website disclosures against IFXData Gl
 - When IFXData license fields such as country, begin time of licence, email, telephone, or address are empty, ask Gemini for optional supplemental values during the scoring prompt. Fill only concrete values into empty fields; leave unresolved fields blank. Do not overwrite non-empty IFXData fields from Gemini supplemental output unless the user explicitly corrected/authorized that field.
 - Do not run broad secondary research for every Gemini result. Trigger secondary verification only when Gemini's `license_information_accuracy`, introduction, or supplemental evidence raises a material concern such as `cannot verify`, `identity mismatch`, `company mismatch`, `number mismatch`, `license number appears to be a company registration number`, `not a traditional financial license`, `scope unclear`, `generic contact details`, or similar uncertainty. For a triggered license, check official broker/regulator/company-register sources, update the prompt with the new evidence, ask Gemini once again, and proceed only if the concern is resolved or clearly narrowed. If it remains unresolved, stop that license as `needs_review`.
 - Use DeepSeek as the default supporting layer for non-scoring language/structure tasks when `DEEPSEEK_API_KEY` is available: official-disclosure structuring, website-vs-backend difference summaries, license-type suggestions, English compression/translation, Chinese batch reports, and exception review. Do not use DeepSeek for final license scoring, API write decisions, or regulator fact verification. Redact private IFXData values unless the text is already public official website/regulator disclosure authorized for processing.
+- DeepSeek routing is allowed only for auxiliary work that does not decide the final score or write safety. Use DeepSeek for: structuring public official website/regulator disclosure into candidate license rows; summarizing website-vs-backend differences; suggesting the closest existing IFXData license type from a supplied dropdown list; compressing long Gemini AI Introductions without changing facts; translating/reporting Chinese summaries; and reviewing redacted exceptions. Do not use DeepSeek for: final license score, revoked/cancellation confirmation, regulator fact verification, deciding whether to write/update/add, or replacing fresh API read verification.
 - Preserve Gemini's substantive English assessment. Remove interface noise and duplicated prompt text, but do not invent, translate, or materially rewrite its reasoning.
 - Accept only one explicit integer score from 0 through 100. Never infer a score from tone, category subscores, dates, or license numbers.
 - Match a result to the source license using broker ID plus license record ID when available; otherwise require the normalized tuple `(institution, license number, company registration name)`.
@@ -59,6 +60,7 @@ description: Precheck a broker's official website disclosures against IFXData Gl
 5. Enumerate all license records in API/display order. Capture the source fields defined in `data-fields.md`, including the stable license record ID.
 6. Stage 1 — run the official-website precheck from `official-website-precheck.md`. Compare website-disclosed regulators, legal entities, license numbers, and scopes with IFXData Global license records before scoring:
    - If the official website cannot be opened, continue with current IFXData Global license data and record `website_unavailable`.
+   - Use DeepSeek only to structure public disclosure text or summarize differences when helpful; final match/write decisions must follow local rules plus official/IFXData evidence.
    - If the official website shows mismatched company names, license numbers, scopes, or extra backend licenses, use DeepSeek to structure/summarize the public disclosure or redacted difference list when available, then stop before Gemini scoring and report the differences so the user can correct IFXData first.
    - If the official website/regulator clearly discloses a license missing from IFXData, add it directly through `addLicenseToBroker`, verify by fresh API read, and then include the newly added record in the scoring run. Do not stop for user confirmation unless the missing license evidence or type mapping is unclear.
    - If IFXData contains a license that the official website no longer discloses, run the two-condition expired-license test. Only when website absence and Gemini cancellation confirmation both pass, update that license `status` to `Revoked` through `updateLicense`, verify by fresh API read, then ask Gemini for the inactive-license reason/background and write that explanation to `ai` while keeping `score` blank. If the test does not fully pass, leave the license unchanged and continue to the next eligible license.
@@ -83,6 +85,24 @@ description: Precheck a broker's official website disclosures against IFXData Gl
 12. Verify with a fresh API read of the same Global license record. Mark completion only after API verification succeeds.
 13. Continue to the next displayed license. Preserve a resumable result for every license: `completed`, `skipped_existing`, `needs_review`, `blocked`, or `failed_verification`.
 14. At batch end, summarize the local result rows. Include the official-website precheck status. Use DeepSeek for the Chinese batch summary when configured; if unavailable, produce the summary locally.
+
+## DeepSeek routing matrix
+
+Use DeepSeek only when it saves Gemini/API cost without weakening verification:
+
+| Step | DeepSeek? | Rule |
+|---|---:|---|
+| Public website/regulator disclosure structuring | Yes | Send only public text; output candidate rows for local/API verification. |
+| Website-vs-backend difference summary | Yes | Redact private backend values unless user authorized the exact payload. |
+| License type suggestion | Yes | Provide current dropdown options; local standardization rules decide final type. |
+| Long AI Introduction compression | Yes | Preserve Gemini meaning; do not add facts. |
+| Chinese batch report / operation summary | Yes | Use compact, redacted run results. |
+| Exception review | Yes | Use redacted API/Gemini error context only. |
+| Final score / AI score reasoning | No | Gemini remains the scoring source. |
+| Revoked/cancelled confirmation | No | Use Gemini focused check plus official website absence. |
+| Regulator fact verification | No | Use official broker/regulator/company-register sources. |
+| IFXData write/add/update decision | No | Use local rules, user authorization, and fresh API data. |
+| API read-after-write verification | No | Use IFXData API only. |
 
 ## Browser and API selection
 
