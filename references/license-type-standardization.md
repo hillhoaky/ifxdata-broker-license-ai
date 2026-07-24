@@ -36,6 +36,7 @@ Use this reference before changing an IFXData broker license `type`. The goal is
 | Kenya CMA | CMA licence, derivatives broker, non-dealing online foreign exchange broker, authorised securities dealer | `Capital Markets Authority License` | Use as the general Kenya Capital Markets Authority licence type unless a more exact approved subtype is later created. |
 | Jordan JSC | Financial Broker for the Account of Others, Introducing Broker, Financial Advisory | `Financial Services Broker License` | Use for Jordan Securities Commission records whose approved scope combines broker, introducing broker, and financial advisory services. Do not simplify this to only `Introducing Broker` or `Investment Dealer`. |
 | Bahamas SCB | Derivatives Trading License (STP), futures/securities/bonds/options trading on an STP or agency-execution basis | `Derivatives Trading License (STP)` | Use for Securities Commission of The Bahamas derivative/STP records, including IEXS Global Ltd (BAH) style disclosures. Do not simplify to generic `Straight Through Processing (STP)`. |
+| Israel ISA | Trading Arena, licensed trading arena, ISA-regulated retail forex/CFD trading platform. The ISA may identify the licensed entity by Israeli company number. | `Trading Arena License` | Use when ISA or broker disclosure confirms the company is a licensed Trading Arena. Do not mark the record invalid solely because the number is also the company registration number. |
 | Cayman CIMA | Securities Investment Business Licence / SIBL | `SIBL License` | Use the corrected IFXData dropdown value for Cayman Securities Investment Business Licence records. |
 | UAE SCA | Category 5, financial consultation, promotion, introduction | `Category 5 License` | Not a full trading/execution licence. |
 | UAE SCA | Category 1 | `Category 1 License` | Use only when official category is clearly Category 1. |
@@ -117,4 +118,13 @@ Create only when needed and user-authorized. Suggested English definitions:
 - `licenseType`: `Derivatives Trading License (STP)`
 - `typeRange`: `Authorises a firm to provide derivatives trading services on a straight-through-processing or agency execution basis within the approved scope of the local securities regulator.`
 - `note`: `A Derivatives Trading License (STP) permits regulated derivatives brokerage or agency execution services, such as futures, options, securities-related derivatives or CFD-style products, without implying full market-making authority.`
+- `color`: `Black`
+
+### Trading Arena License
+
+- IFXData ID at creation time: `2338`
+- `name`: `Trading Arena License`
+- `licenseType`: `Trading Arena License`
+- `typeRange`: `Authorises a firm to operate a regulated trading arena or trading platform for approved financial instruments under the local securities regulator, including forex or CFD-style products where permitted.`
+- `note`: `A Trading Arena License is used in jurisdictions such as Israel where the securities regulator authorises trading-arena operators. The regulator may identify the licensed entity by its company registration number rather than a separate FCA-style licence number.`
 - `color`: `Black`
