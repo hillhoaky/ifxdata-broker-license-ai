@@ -47,8 +47,8 @@
     "deepseek_optional": true,
     "default_batch_size_early_rollout": {"brokers": 1, "licenses": 10},
     "default_cadence_after_supervised_success": "PT10M",
-    "gemini_min_interval_seconds": 120,
-    "broker_cooldown_seconds": 600,
+    "gemini_min_interval_seconds": 20,
+    "broker_cooldown_seconds": 60,
     "heartbeat_max_brokers_per_wakeup": 1,
     "cursor_required": true,
     "reference": "references/automation-runtime.md"

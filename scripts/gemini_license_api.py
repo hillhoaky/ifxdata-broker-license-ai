@@ -354,7 +354,7 @@ def main() -> int:
     parser.add_argument(
         "--min-interval",
         type=float,
-        default=float(os.getenv("GEMINI_MIN_INTERVAL_SECONDS") or 120),
+        default=float(os.getenv("GEMINI_MIN_INTERVAL_SECONDS") or 20),
         help="Minimum seconds between Gemini requests across local Codex processes",
     )
     parser.add_argument(
