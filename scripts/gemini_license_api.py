@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Score IFXData broker license records through Google AI Studio Gemini API.
 
-Reads GEMINI_API_KEY or GOOGLE_AI_STUDIO_API_KEY from the environment first,
-then a nearby untracked `.env.local`. The key is never printed.
+Reads QUICKROUTER_API_KEY, GEMINI_API_KEY, or GOOGLE_AI_STUDIO_API_KEY from
+the environment first, then a nearby untracked `.env.local`. Keys are never
+printed.
 """
 
 from __future__ import annotations
@@ -41,7 +42,13 @@ def load_local_env() -> str | None:
             key, value = line.split("=", 1)
             key = key.strip()
             value = value.strip().strip('"').strip("'")
-            if key in {"GEMINI_API_KEY", "GOOGLE_AI_STUDIO_API_KEY"} and key not in os.environ:
+            if key in {
+                "QUICKROUTER_API_KEY",
+                "QUICKROUTER_BASE_URL",
+                "QUICKROUTER_MODEL",
+                "GEMINI_API_KEY",
+                "GOOGLE_AI_STUDIO_API_KEY",
+            } and key not in os.environ:
                 os.environ[key] = value
         return str(candidate)
     return None
@@ -54,6 +61,26 @@ def api_key() -> tuple[str, str | None]:
         print(json.dumps({"status": "api_unavailable", "reason": "missing_gemini_api_key"}, ensure_ascii=False, indent=2))
         raise SystemExit(2)
     return key, source
+
+
+def provider_config(model: str) -> dict[str, str]:
+    load_local_env()
+    quickrouter_key = os.getenv("QUICKROUTER_API_KEY") or ""
+    if quickrouter_key:
+        return {
+            "provider": "quickrouter",
+            "key": quickrouter_key,
+            "base_url": (os.getenv("QUICKROUTER_BASE_URL") or "https://api.quickrouter.ai/v1").rstrip("/"),
+            "model": os.getenv("QUICKROUTER_MODEL") or model,
+        }
+
+    key, _source = api_key()
+    return {
+        "provider": "google",
+        "key": key,
+        "base_url": "https://generativelanguage.googleapis.com/v1beta",
+        "model": model,
+    }
 
 
 def normalize_records(data: object) -> list[dict[str, object]]:
@@ -255,21 +282,36 @@ def request_gemini(
     min_interval: float,
     rate_limit_file: str,
 ) -> str:
-    key, _source = api_key()
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
-    body = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {
+    config = provider_config(model)
+    if config["provider"] == "quickrouter":
+        url = f"{config['base_url']}/chat/completions"
+        body = {
+            "model": config["model"],
+            "messages": [{"role": "user", "content": prompt}],
             "temperature": temperature,
-            "maxOutputTokens": max_tokens,
-            "thinkingConfig": {"thinkingBudget": 0},
-        },
-    }
+            "max_tokens": max_tokens,
+        }
+        headers = {
+            "Authorization": f"Bearer {config['key']}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+    else:
+        url = f"{config['base_url']}/models/{config['model']}:generateContent?key={config['key']}"
+        body = {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens,
+                "thinkingConfig": {"thinkingBudget": 0},
+            },
+        }
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
     req = urllib.request.Request(
         url,
         data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
         method="POST",
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        headers=headers,
     )
 
     wait_for_shared_rate_limit(min_interval=min_interval, rate_limit_file=rate_limit_file)
@@ -291,6 +333,13 @@ def request_gemini(
             raise SystemExit(2)
     else:
         return ""
+
+    if config["provider"] == "quickrouter":
+        choices = payload.get("choices") or []
+        if not choices:
+            return ""
+        message = (choices[0].get("message") or {}) if isinstance(choices[0], dict) else {}
+        return str(message.get("content") or "")
 
     candidates = payload.get("candidates") or []
     if not candidates:
@@ -393,7 +442,12 @@ def main() -> int:
         rate_limit_file=args.rate_limit_file,
     )
     parsed = parse_reply(reply) if len(records) == 1 else parse_batch_reply(reply)
-    parsed.update({"status": "ok" if parsed["valid"] else "needs_review", "model": args.model})
+    active_config = provider_config(args.model)
+    parsed.update({
+        "status": "ok" if parsed["valid"] else "needs_review",
+        "provider": active_config["provider"],
+        "model": active_config["model"],
+    })
     print(json.dumps(parsed, ensure_ascii=False, indent=2))
     return 0 if parsed["valid"] else 1
 

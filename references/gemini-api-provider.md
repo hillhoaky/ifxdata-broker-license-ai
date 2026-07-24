@@ -1,16 +1,26 @@
 # Gemini API provider
 
-Use this reference when scoring licenses through Google AI Studio instead of Gemini Web.
+Use this reference when scoring licenses through QuickRouter or Google AI Studio instead of Gemini Web.
 
 ## Default provider
 
-- Provider: Google AI Studio Gemini API
+- Preferred provider: QuickRouter Gemini API when `QUICKROUTER_API_KEY` is configured
+- Fallback provider: Google AI Studio Gemini API when `GEMINI_API_KEY` or `GOOGLE_AI_STUDIO_API_KEY` is configured
 - Model: `gemini-2.5-flash`
 - Script: `scripts/gemini_license_api.py`
-- Required local secret: `GEMINI_API_KEY` or `GOOGLE_AI_STUDIO_API_KEY`
-- Generation setting: `thinkingConfig.thinkingBudget = 0`
+- QuickRouter local settings: `QUICKROUTER_API_KEY`, `QUICKROUTER_BASE_URL`, `QUICKROUTER_MODEL`
+- Google AI Studio local secret: `GEMINI_API_KEY` or `GOOGLE_AI_STUDIO_API_KEY`
+- Google AI Studio generation setting: `thinkingConfig.thinkingBudget = 0`
 
 Keep API keys in environment variables or an untracked local `.env.local`. Never commit API keys, echo them in logs, or place them in run result files.
+
+QuickRouter uses an OpenAI-compatible chat-completions request:
+
+```text
+POST https://api.quickrouter.ai/v1/chat/completions
+Authorization: Bearer <QUICKROUTER_API_KEY>
+model: gemini-2.5-flash
+```
 
 ## Rate-limit policy
 
