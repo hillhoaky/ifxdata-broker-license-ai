@@ -129,6 +129,7 @@ Important output rules:
 Score: <integer from 0 to 100>
 AI Score Introduction: <250-450 words>
 Risk Level: <Low / Medium / High>
+License Information Accuracy: <70 Chinese characters or fewer, briefly judging whether the license information is accurate>
 3. Discuss regulator strength, license status, entity/license match, investor protection, operating history, license type implications, and remaining risks.
 4. If country, begin date, email, or telephone are concrete and relevant, mention them. If uncertain, do not invent them.
 5. Do not include markdown tables, bullets, citations, or source URLs in the final answer.
@@ -184,6 +185,7 @@ Use exactly this JSON shape:
       "company": "<same registered company name from the input>",
       "score": <integer from 0 to 100>,
       "risk_level": "<Low, Medium, or High>",
+      "license_information_accuracy": "<70 Chinese characters or fewer, briefly judging whether the license information is accurate>",
       "introduction": "<250-400 English words in four short paragraphs separated by newline newline>",
       "investor_significance": "<one concise English sentence>",
       "supplemental_fields": {{
@@ -203,14 +205,20 @@ Use exactly this JSON shape:
 def parse_reply(text: str) -> dict[str, object]:
     score_match = re.search(r"(?im)^\s*Score\s*:\s*(\d{1,3})\b", text)
     risk_match = re.search(r"(?im)^\s*Risk Level\s*:\s*(Low|Medium|High)\b", text)
+    accuracy_match = re.search(r"(?im)^\s*License Information Accuracy\s*:\s*(.+?)\s*$", text)
     intro = text
     intro_match = re.search(r"(?is)AI Score Introduction\s*:\s*(.*?)(?:\n\s*Risk Level\s*:|$)", text)
     if intro_match:
         intro = intro_match.group(1).strip()
     score = int(score_match.group(1)) if score_match else None
+    accuracy = accuracy_match.group(1).strip() if accuracy_match else None
+    accuracy_length = chinese_text_length(accuracy)
     return {
         "score": score,
         "risk_level": risk_match.group(1) if risk_match else None,
+        "license_information_accuracy": accuracy,
+        "license_information_accuracy_length": accuracy_length,
+        "license_information_accuracy_valid": accuracy_length is not None and 1 <= accuracy_length <= 70,
         "introduction": intro,
         "word_count": len(intro.split()),
         "raw_reply": text,
@@ -242,6 +250,9 @@ def parse_batch_reply(text: str) -> dict[str, object]:
         if not isinstance(item, dict):
             continue
         intro = str(item.get("introduction") or "").strip()
+        accuracy = item.get("license_information_accuracy")
+        accuracy_text = str(accuracy).strip() if accuracy not in (None, "") else None
+        accuracy_length = chinese_text_length(accuracy_text)
         score = item.get("score")
         if isinstance(score, str) and score.isdigit():
             score = int(score)
@@ -253,6 +264,9 @@ def parse_batch_reply(text: str) -> dict[str, object]:
                 "company": item.get("company"),
                 "score": score,
                 "risk_level": item.get("risk_level"),
+                "license_information_accuracy": accuracy_text,
+                "license_information_accuracy_length": accuracy_length,
+                "license_information_accuracy_valid": accuracy_length is not None and 1 <= accuracy_length <= 70,
                 "introduction": intro,
                 "investor_significance": item.get("investor_significance"),
                 "supplemental_fields": item.get("supplemental_fields") if isinstance(item.get("supplemental_fields"), dict) else {},
@@ -267,6 +281,13 @@ def parse_batch_reply(text: str) -> dict[str, object]:
         "raw_reply": text,
         "valid": bool(parsed_results) and all(bool(item.get("valid")) for item in parsed_results),
     }
+
+
+def chinese_text_length(text: str | None) -> int | None:
+    if text is None:
+        return None
+    cleaned = re.sub(r"[^\u4e00-\u9fffA-Za-z0-9]", "", text)
+    return len(cleaned)
 
 
 def request_gemini(

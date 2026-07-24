@@ -41,6 +41,7 @@ AI score introduction:
 
 <Paragraph 4: material limitations, uncertainties or risks, followed by the reasons supporting the final score>
 Risk level: <Low, Medium, or High>
+License information accuracy: <70 Chinese characters or fewer, briefly judging whether the IFXData license information appears accurate>
 Investor significance: <one concise sentence>
 Supplemental fields:
 Country: <country/jurisdiction or Not provided>
@@ -64,6 +65,7 @@ When using `scripts/gemini_license_api.py` with multiple license records, the sc
       "company": "Example Ltd",
       "score": 88,
       "risk_level": "Low",
+      "license_information_accuracy": "牌照编号、实体与状态整体匹配",
       "introduction": "Four short English paragraphs...",
       "investor_significance": "One concise sentence.",
       "supplemental_fields": {
@@ -87,6 +89,7 @@ Write each result independently and require the result to match the original lic
 - Do not ask Codex to normalize regulator names, numbering systems, or identity variants through free-form reasoning. Use confirmed IFXData fields, prior reviewed corrections, official-registry evidence, or the optional DeepSeek exception-review path.
 - Do not include an expected score or a sample score in the prompt.
 - Require substantive license-specific analysis rather than generic praise of the regulator or broker.
+- Require a short `license_information_accuracy` judgment for every license. It should be 70 Chinese characters or fewer and briefly describe whether the provided regulator, license number, legal entity, status, and address appear accurate or need review.
 - Keep the complete AI score introduction at 400 English words or fewer. Shorter output is acceptable when it is substantive, English, and split into the required four paragraphs.
 - Write exactly four short English paragraphs separated by blank lines. Do not add headings, bullets, numbering, or Markdown inside the introduction.
 - Do not place source labels, citation fragments, footnote markers, or standalone website names inside the four introduction paragraphs.
