@@ -9,9 +9,11 @@ Use DeepSeek for:
 - `disclosure_structuring`: turn public official website/regulator disclosure text into structured license rows.
 - `difference_summary`: summarize backend-vs-website differences for the user.
 - `license_type_suggestion`: suggest the nearest IFXData standard type from public or redacted data.
+- `missing_field_candidates`: extract candidate `country`, `beginTime`, `email`, `telphone`, `address`, and `fullName` values from public evidence and current-broker context.
 - `text_compression`: shorten Gemini introductions without changing meaning when text is too long.
 - `translation`: Chinese/English translation for reports, notes, and type descriptions.
 - `summary_report`: Chinese broker/page/batch completion reports.
+- `api_log_summary`: summarize compact IFXData/Gemini run logs for the operator.
 - `exception_review`: explain API/Gemini/rate-limit/identity mismatch issues.
 
 Do not use DeepSeek for:
@@ -30,11 +32,14 @@ Do not use DeepSeek for:
 | Workflow step | DeepSeek usage | Final authority |
 |---|---|---|
 | Public official website/regulator disclosure structuring | Allowed; send only public text and request candidate license rows | Official source plus IFXData API read |
-| Backend-vs-website difference summary | Allowed with redacted/private-safe data | Local comparison rules |
+| Backend-vs-website difference summary | Allowed through `compare`; send only current-broker fields needed for exact comparison, never credentials/cookies/screenshots | Local comparison rules |
 | Missing-license candidate draft | Allowed for public disclosure structuring only | IFXData license-type list, local standardization rules, fresh API verification |
 | License type suggestion | Allowed when current dropdown options are supplied | `license-type-standardization.md` plus verified dropdown list |
+| Missing field candidate extraction | Allowed through `missing-fields`; candidate values only | Gemini supplemental fields plus official evidence; write only into empty IFXData fields |
 | Gemini AI Introduction compression | Allowed when text is too long | Gemini substantive answer; DeepSeek must not add facts |
 | Chinese page/broker/batch report | Allowed with compact redacted run results | Fresh API verification result |
+| API log summary | Allowed through `log-summary` with redaction | Fresh API verification result |
+| License type note/range drafting and translation | Allowed; concise English only | User/local type maintenance rules and verified license type list |
 | Exception review | Allowed with redacted errors and context | User direction or local safety rules |
 | Final score | Not allowed | Gemini |
 | License information accuracy / concern resolution | Not allowed | Gemini plus official/regulator evidence |
@@ -57,6 +62,8 @@ Never send private IFXData values to DeepSeek unless the user explicitly authori
 
 Public official website/regulator disclosure text may be sent to DeepSeek for structuring because it is already public and needed for the precheck. Never include credentials, cookies, admin screenshots, or raw private backend snapshots in that public-disclosure payload.
 
+For exact website-vs-backend comparison, send only the current broker's necessary license fields and public official evidence. Never send IFXData admin account/password, cookies, browser screenshots, unrelated brokers, or historical raw runs. If exact private-field comparison is not authorized, run `compare` without `--allow-private`; DeepSeek will produce a limited redacted summary and local rules must do exact matching.
+
 ## Commands
 
 ### Public disclosure structuring
@@ -74,6 +81,22 @@ python3 scripts/deepseek_license_pipeline.py type-suggest license-or-disclosure.
 ```
 
 Input should include the regulator, country, official wording, current IFXData type if any, and known standard types. Output suggests the closest IFXData type and a short reason. DeepSeek only suggests; local rules and the current dropdown list must still control the final value.
+
+### Website vs backend comparison
+
+```bash
+python3 scripts/deepseek_license_pipeline.py compare comparison.json --allow-private
+```
+
+Input should contain the current broker's official disclosure rows, current IFXData license rows, and relevant standard license type options. Use `--allow-private` only for the current broker fields needed for exact comparison. Output JSON highlights matched rows, missing backend licenses, extra backend licenses, field mismatches, unclear items, and a concise Chinese summary. DeepSeek does not decide whether to add, update, revoke, or write.
+
+### Missing-field candidates
+
+```bash
+python3 scripts/deepseek_license_pipeline.py missing-fields missing-fields.json --allow-private
+```
+
+Input should contain public evidence and current IFXData rows. Output candidate values for empty fields only. Generic support contacts should be flagged as `generic_contact_details` rather than written automatically.
 
 ### Text compression
 
@@ -122,6 +145,14 @@ python3 scripts/deepseek_license_pipeline.py report run-results.json
 ```
 
 Input is a JSON array of compact per-license results with private identifiers redacted. DeepSeek returns counts and a concise list of unresolved records. Do not send credentials, cookies, raw browser snapshots, raw company names, raw license numbers, raw addresses, or unrelated broker data.
+
+### API log summary
+
+```bash
+python3 scripts/deepseek_license_pipeline.py log-summary run-log.json
+```
+
+Use for readable Chinese summaries from compact IFXData/Gemini logs. The command recursively redacts common private identifiers before calling DeepSeek. Final success still depends on fresh IFXData API verification.
 
 ## Failure policy
 

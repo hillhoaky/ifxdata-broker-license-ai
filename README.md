@@ -8,7 +8,7 @@ This skill supports:
 - Google Gemini Web license scoring.
 - Local deterministic parsing and validation.
 - API-first IFXData `updateLicense` write-back.
-- Optional DeepSeek support only for redacted translation, exception review, or batch reporting.
+- Optional DeepSeek support for non-scoring auxiliary work: official disclosure structuring, website-vs-backend difference summaries, license type suggestions, missing-field candidates, Gemini introduction compression, translation, API log summaries, exception review, and batch reporting.
 
 ## Safety model
 
@@ -17,7 +17,8 @@ This skill supports:
   - `IFXDATA_ADMIN_ACCOUNT`
   - `IFXDATA_ADMIN_PASSWORD`
 - Use DeepSeek credentials from environment variables only when optional redacted processing is explicitly needed.
-- Routine scoring and parsing do not require DeepSeek.
+- Routine scoring and parsing do not require DeepSeek. Gemini remains the final scoring source; IFXData API remains the final write/read-back authority.
+- DeepSeek must not decide final scores, revoked/cancelled status, write/add/update safety, or read-after-write verification.
 - Routine IFXData reads/writes should use API endpoints, not screenshots or manual DevTools extraction.
 
 ## Main workflow
@@ -25,11 +26,13 @@ This skill supports:
 1. Read the broker's Global license records from IFXData.
 2. Read the broker's Global `Web link`.
 3. Compare official website license disclosures against IFXData Global records.
-4. Stop for correction if there are material mismatches.
-5. Ask Gemini to score each confirmed license.
-6. Parse Gemini output locally.
-7. Write `score` and `ai` through `updateLicense`.
-8. Verify by reading the same license records again.
+4. Use DeepSeek when configured to structure public disclosure text and summarize current-broker website-vs-backend differences.
+5. Stop for correction if there are material mismatches.
+6. Ask Gemini to score each confirmed license.
+7. Optionally use DeepSeek to compress overlong Gemini introductions or summarize logs.
+8. Parse Gemini output locally.
+9. Write `score` and `ai` through `updateLicense`.
+10. Verify by reading the same license records again.
 
 ## Files
 
@@ -42,4 +45,3 @@ This skill supports:
 ## Excluded from this repository
 
 Historical test runs are intentionally excluded. They can contain broker-specific audit records and should stay local unless deliberately sanitized.
-

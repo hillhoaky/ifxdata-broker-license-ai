@@ -19,28 +19,54 @@ DEFAULT_MODEL = "deepseek-v4-flash"
 SENSITIVE_SOURCE_KEYS = {
     "broker_id",
     "broker_name",
+    "brokerId",
+    "brokerName",
+    "id",
+    "key",
+    "licenseId",
     "license_record_id",
+    "license_record_key",
     "license_number",
+    "licenseNumber",
+    "no",
     "company_registration_name",
     "company_registration_address",
+    "company",
+    "fullName",
     "existing_ai_score_introduction",
+    "ai",
     "full_name",
     "email",
     "telephone",
+    "telphone",
     "address",
+    "image",
 }
 PLACEHOLDER_BY_KEY = {
     "broker_id": "[BROKER_ID]",
     "broker_name": "[BROKER_NAME]",
+    "brokerId": "[BROKER_ID]",
+    "brokerName": "[BROKER_NAME]",
+    "id": "[BROKER_ID]",
+    "key": "[LICENSE_RECORD_ID]",
+    "licenseId": "[INSTITUTION_ID]",
     "license_record_id": "[LICENSE_RECORD_ID]",
+    "license_record_key": "[LICENSE_RECORD_ID]",
     "license_number": "[LICENSE_NUMBER]",
+    "licenseNumber": "[LICENSE_NUMBER]",
+    "no": "[LICENSE_NUMBER]",
     "company_registration_name": "[LICENSED_ENTITY]",
     "company_registration_address": "[REGISTERED_ADDRESS]",
+    "company": "[LICENSED_ENTITY]",
+    "fullName": "[FULL_NAME]",
     "existing_ai_score_introduction": "[EXISTING_AI_SCORE_INTRODUCTION]",
+    "ai": "[EXISTING_AI_SCORE_INTRODUCTION]",
     "full_name": "[FULL_NAME]",
     "email": "[EMAIL]",
     "telephone": "[TELEPHONE]",
+    "telphone": "[TELEPHONE]",
     "address": "[ADDRESS]",
+    "image": "[IMAGE_URL]",
 }
 
 
@@ -99,6 +125,39 @@ def redact_source(source: dict[str, Any]) -> tuple[dict[str, Any], dict[str, str
             redacted[key] = value
     redacted["redaction_applied"] = True
     return redacted, mapping
+
+
+def redact_nested(value: Any) -> tuple[Any, dict[str, str]]:
+    """Redact common private IFXData fields recursively.
+
+    Public website disclosure commands intentionally do not use this helper.
+    It is for backend snapshots, exceptions, logs, and mixed compare payloads.
+    """
+
+    mapping: dict[str, str] = {}
+
+    def walk(item: Any) -> Any:
+        nonlocal mapping
+        if isinstance(item, list):
+            return [walk(child) for child in item]
+        if not isinstance(item, dict):
+            return item
+        redacted: dict[str, Any] = {}
+        for key, raw in item.items():
+            if key in SENSITIVE_SOURCE_KEYS and raw not in (None, "", "Not provided"):
+                base = PLACEHOLDER_BY_KEY.get(key, f"[{key.upper()}]")
+                placeholder = base
+                if placeholder in mapping and mapping[placeholder] != str(raw):
+                    placeholder = f"{base[:-1]}_{len(mapping) + 1}]"
+                redacted[key] = placeholder
+                mapping[placeholder] = str(raw)
+            else:
+                redacted[key] = walk(raw)
+        if any(key in item for key in SENSITIVE_SOURCE_KEYS):
+            redacted["redaction_applied"] = True
+        return redacted
+
+    return walk(value), mapping
 
 
 def assert_no_sensitive_leak(payload: str, source: Optional[dict[str, Any]]) -> None:
@@ -245,6 +304,43 @@ def type_suggest(data: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def compare_disclosures(data: dict[str, Any], *, allow_private: bool = False) -> dict[str, Any]:
+    payload: Any = data
+    redaction_applied = False
+    mapping: dict[str, str] = {}
+    if not allow_private:
+        payload, mapping = redact_nested(data)
+        redaction_applied = True
+    system = """Compare official broker/regulator license disclosures with IFXData backend license rows. Return JSON only with keys status, matched, missing_in_ifxdata, extra_in_ifxdata, field_mismatches, type_suggestions_needed, unclear_items, concise_summary_zh. Do not score licenses. Do not decide writes. Treat website/regulator facts as disclosure candidates only; final authority remains local rules plus IFXData fresh API reads. For each mismatch include regulator, jurisdiction, entity, license number, field, official_value, ifxdata_value, and severity when available. If values are placeholders, compare only non-redacted fields and mark private_comparison_limited true."""
+    result = call_deepseek(system, "Compare this payload as json:\n" + json.dumps(payload, ensure_ascii=False)[:30000])
+    result["redaction_applied"] = redaction_applied
+    result["redaction_mapping_keys"] = sorted(mapping.keys())
+    return result
+
+
+def missing_fields(data: dict[str, Any], *, allow_private: bool = False) -> dict[str, Any]:
+    payload: Any = data
+    redaction_applied = False
+    mapping: dict[str, str] = {}
+    if not allow_private:
+        payload, mapping = redact_nested(data)
+        redaction_applied = True
+    system = """Extract missing-field candidates for IFXData broker-license records. Return JSON only with keys status, candidates, unresolved, warnings. Candidates may include country, beginTime, email, telphone, address, fullName, and source_evidence. Do not invent values. Do not overwrite non-empty IFXData fields. Do not decide writes; mark every value as candidate_only. If source is generic customer support rather than regulator/entity-specific, add warning generic_contact_details."""
+    result = call_deepseek(system, "Extract candidate missing fields as json:\n" + json.dumps(payload, ensure_ascii=False)[:30000])
+    result["redaction_applied"] = redaction_applied
+    result["redaction_mapping_keys"] = sorted(mapping.keys())
+    return result
+
+
+def log_summary(data: Any) -> dict[str, Any]:
+    payload, mapping = redact_nested(data)
+    system = """Summarize IFXData license automation logs for a non-technical operator. Return JSON only with keys status, completed_count, skipped_count, blocked_count, write_verified_count, next_broker, issues_zh, summary_zh. Do not expose credentials or raw private identifiers. Do not recommend duplicate writes unless fresh read shows no saved data."""
+    result = call_deepseek(system, "Summarize these redacted logs as json:\n" + json.dumps(payload, ensure_ascii=False)[:30000])
+    result["redaction_applied"] = True
+    result["redaction_mapping_keys"] = sorted(mapping.keys())
+    return result
+
+
 def compress_text(text: str, max_words: int) -> dict[str, Any]:
     system = f"""Compress the supplied English IFXData license introduction to at most {max_words} words. Return JSON only with keys status, compressed_text, word_count, changed_meaning. Preserve all substantive risk and regulator reasoning. Do not add facts or scores."""
     return call_deepseek(system, text[:24000])
@@ -267,10 +363,9 @@ def exception_review(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def redact_command(data: Any) -> Any:
-    if isinstance(data, list):
-        return [redact_source(item)[0] if isinstance(item, dict) else item for item in data]
-    if isinstance(data, dict):
-        return redact_source(data)[0]
+    if isinstance(data, (dict, list)):
+        redacted, _mapping = redact_nested(data)
+        return redacted
     raise ValueError("redact input must be a JSON object or array")
 
 
@@ -287,13 +382,16 @@ def self_test() -> dict[str, Any]:
     }
     redacted, mapping = redact_source(sample_source)
     redacted_answer, answer_mapping = redact_text("Overall score: 90/100\nSample Capital Ltd ABC123 1 Private Road", sample_source)
+    nested_sample = {"backend_records": [{"key": 123, "no": "ABC123", "company": "Sample Capital Ltd"}]}
+    nested_redacted, nested_mapping = redact_nested(nested_sample)
     assert_no_sensitive_leak(json.dumps(redacted, ensure_ascii=False) + redacted_answer, sample_source)
+    assert "ABC123" not in json.dumps(nested_redacted, ensure_ascii=False)
     return {
         "validator_runs": True,
         "paragraph_count": checked["paragraph_count"],
         "format_valid": checked["format_valid"],
         "redaction_runs": True,
-        "redacted_placeholders": sorted({*mapping.keys(), *answer_mapping.keys()}),
+        "redacted_placeholders": sorted({*mapping.keys(), *answer_mapping.keys(), *nested_mapping.keys()}),
     }
 
 
@@ -311,6 +409,12 @@ def main() -> int:
     p_disc.add_argument("text", type=Path)
     p_type = sub.add_parser("type-suggest")
     p_type.add_argument("source", type=Path)
+    p_compare = sub.add_parser("compare")
+    p_compare.add_argument("source", type=Path)
+    p_compare.add_argument("--allow-private", action="store_true", help="Allow sending current broker license fields needed for exact backend-vs-website comparison")
+    p_missing = sub.add_parser("missing-fields")
+    p_missing.add_argument("source", type=Path)
+    p_missing.add_argument("--allow-private", action="store_true", help="Allow sending current broker license fields needed for exact missing-field extraction")
     p_comp = sub.add_parser("compress")
     p_comp.add_argument("text", type=Path)
     p_comp.add_argument("--max-words", type=int, default=400)
@@ -321,6 +425,8 @@ def main() -> int:
     p_exc.add_argument("source", type=Path)
     p_redact = sub.add_parser("redact")
     p_redact.add_argument("source", type=Path)
+    p_log = sub.add_parser("log-summary")
+    p_log.add_argument("source", type=Path)
     sub.add_parser("self-test")
     args = parser.parse_args()
     try:
@@ -338,6 +444,10 @@ def main() -> int:
             result = disclosure(args.text.read_text(encoding="utf-8"))
         elif args.command == "type-suggest":
             result = type_suggest(read_json(args.source))
+        elif args.command == "compare":
+            result = compare_disclosures(read_json(args.source), allow_private=args.allow_private)
+        elif args.command == "missing-fields":
+            result = missing_fields(read_json(args.source), allow_private=args.allow_private)
         elif args.command == "compress":
             result = compress_text(args.text.read_text(encoding="utf-8"), args.max_words)
         elif args.command == "translate":
@@ -346,6 +456,8 @@ def main() -> int:
             result = exception_review(read_json(args.source))
         elif args.command == "redact":
             result = redact_command(read_json(args.source))
+        elif args.command == "log-summary":
+            result = log_summary(read_json(args.source))
         else:
             result = self_test()
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
