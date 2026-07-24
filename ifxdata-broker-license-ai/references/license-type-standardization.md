@@ -34,6 +34,7 @@ Use this reference before changing an IFXData broker license `type`. The goal is
 | Singapore MAS | Capital Markets Services Licence | `Capital Markets Services License` | Use for CMS permissions. |
 | Japan FSA | Type I Financial Instruments Business | `Type I Financial Instruments Business` | Use for Type I FIBO licences. |
 | Kenya CMA | CMA licence, derivatives broker, non-dealing online foreign exchange broker, authorised securities dealer | `Capital Markets Authority License` | Use as the general Kenya Capital Markets Authority licence type unless a more exact approved subtype is later created. |
+| Jordan JSC | Financial Broker for the Account of Others, Introducing Broker, Financial Advisory | `Financial Services Broker License` | Use for Jordan Securities Commission records whose approved scope combines broker, introducing broker, and financial advisory services. Do not simplify this to only `Introducing Broker` or `Investment Dealer`. |
 | Cayman CIMA | Securities Investment Business Licence / SIBL | `SIBL License` | Use the corrected IFXData dropdown value for Cayman Securities Investment Business Licence records. |
 | UAE SCA | Category 5, financial consultation, promotion, introduction | `Category 5 License` | Not a full trading/execution licence. |
 | UAE SCA | Category 1 | `Category 1 License` | Use only when official category is clearly Category 1. |
@@ -97,4 +98,13 @@ Create only when needed and user-authorized. Suggested English definitions:
 - `licenseType`: `Capital Markets Authority License`
 - `typeRange`: `Applies to capital market intermediary activities approved by the regulator, including securities dealers, derivatives brokers, non-dealing online foreign exchange brokers, investment advisers and fund managers.`
 - `note`: `A Capital Markets Authority License is issued by a national capital markets regulator such as Kenya CMA. It authorises approved market intermediary services within the permitted scope.`
+- `color`: `Black`
+
+### Financial Services Broker License
+
+- IFXData ID at creation time: `2282`
+- `name`: `Financial Services Broker License`
+- `licenseType`: `Financial Services Broker License`
+- `typeRange`: `Authorises a financial services company to provide brokerage, introducing broker, and financial advisory services within the approved scope of the local securities regulator.`
+- `note`: `A Financial Services Broker License allows a regulated firm to act as a broker or introducing broker and provide financial advisory services under local securities supervision. It is not always equivalent to a full forex or CFD market-maker licence.`
 - `color`: `Black`
