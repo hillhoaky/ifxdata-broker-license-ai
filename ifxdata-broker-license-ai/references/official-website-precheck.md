@@ -85,11 +85,11 @@ Use these comparison statuses:
 - If IFXData contains a license the website no longer discloses, mark it `website_missing` and run the two-condition expired-license test:
   1. Confirm the broker's official website does not disclose a matching regulator/entity/license-number record after checking the likely regulation/about/legal/footer pages.
   2. Ask Gemini a focused cancellation question using the exact broker name, regulator, country, license type, license number, begin time, status, company, fullName, and address. Require Gemini to answer whether the license has been revoked, cancelled, withdrawn, surrendered, expired, or voluntarily cancelled, and to provide the reason/evidence context.
-  If both conditions are satisfied, update IFXData `status` to `Revoked` through `updateLicense`, verify by fresh API read, and leave score/`ai` blank. If either condition is missing, ambiguous, or contradicted, leave the license unchanged and continue the automation.
+  If both conditions are satisfied, update IFXData `status` to `Revoked` through `updateLicense`, verify by fresh API read, then ask Gemini for the inactive-license reason/background and write the explanation to `ai` while keeping `score` blank. If either condition is missing, ambiguous, or contradicted, leave the license unchanged and continue the automation.
 
 ## Inactive license explanation
 
-For records already marked `Revoked`, `Cancelled`, `Surrendered`, `Withdrawn`, or `Expired`, skip scoring and leave score/`ai` blank by default. Ask Gemini for an inactive-license explanation only when the user explicitly requests it for a specific record.
+For records already marked `Revoked`, `Cancelled`, `Surrendered`, `Withdrawn`, or `Expired`, skip normal scoring but ask Gemini for an inactive-license explanation and write it to `ai` when `ai` is empty or stale. Keep `score` blank unless the user explicitly requests a score for inactive licenses.
 - If a website cannot be opened, do not block the scoring run. Continue with current IFXData values and record `website_unavailable`.
 - If the official website contradicts IFXData but Gemini later provides more reliable regulator-specific evidence, report it to the user and keep the affected license as `needs_review` until corrected.
 
